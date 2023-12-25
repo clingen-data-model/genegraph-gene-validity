@@ -22,7 +22,8 @@
             [clojure.edn :as edn])
   (:import [org.apache.jena.sparql.core Transactional]
            [org.apache.jena.query ReadWrite]
-           [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors]))
+           [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors])
+  (:gen-class))
 
 
 (def prop-query
@@ -140,6 +141,9 @@
 (def base-fs-handle
   {:type :file
    :base "/users/tristan/data/genegraph-neo/new-base/"})
+
+(defn -main [& args]
+  (println "hello genegraph!"))
 
 (comment
 
