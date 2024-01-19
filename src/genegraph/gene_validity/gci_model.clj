@@ -41,6 +41,7 @@
 
             "gci" "http://dataexchange.clinicalgenome.org/gci/"
             "gcixform" "http://dataexchange.clinicalgenome.org/gcixform/"
+            "cg" "http://dataexchange.clinicalgenome.org/terms/"
 
             ;; ;; common prefixes
             "HGNC" "https://identifiers.org/hgnc:"
@@ -82,6 +83,7 @@
             "interactionType" {"@type" "@vocab"}
             "probandIs" {"@type" "@vocab"}
             "genotypingMethods" {"@container" "@list"}
+            "curationReasons" {"@type" "@vocab"}
 
             ;; ;; Category names
             "Model Systems" "gcixform:ModelSystems"
@@ -207,7 +209,18 @@
             ;; probandIs
             "Biallelic compound heterozygous" "http://purl.obolibrary.org/obo/GENO_0000402"
             "Biallelic homozygous" "http://purl.obolibrary.org/obo/GENO_0000136"
-            "Monoallelic heterozygous"  "http://purl.obolibrary.org/obo/GENO_0000135" }}))))
+            "Monoallelic heterozygous"  "http://purl.obolibrary.org/obo/GENO_0000135"
+
+            ;; update reasons
+            "New Curation" "cg:NewCuration"
+            "Adminstrative Update Disease Name Update" "cg:DiseaseNameUpdate"
+            "Administrative Update Error Clarification" "cg:ErrorClarification"
+            "Recuration Community Request" "cg:RecurationCommunityRequest"
+            "Recuration Due to Timing" "cg:RecurationTiming"
+            "Recuration New Evidence" "cg:RecurationNewEvidence"
+            "Recuration Framework Change" "cg:RecurationFrameworkChange"
+            
+            }}))))
 
 (defn expand-affiliation-to-iri
   "Expand affiliation when a simple string field, to be an iri"

@@ -22,7 +22,9 @@
             [clojure.edn :as edn])
   (:import [org.apache.jena.sparql.core Transactional]
            [org.apache.jena.query ReadWrite]
-           [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors])
+           [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors]
+           [com.google.cloud.secretmanager.v1 AccessSecretVersionResponse ProjectName Replication Secret SecretManagerServiceClient SecretPayload SecretVersion SecretName]
+           [com.google.protobuf ByteString])
   (:gen-class))
 
 
@@ -213,6 +215,24 @@
                      "value.serializer"
                      "org.apache.kafka.common.serialization.StringSerializer"}})
 
+(def dx-ccloud-dev
+  {:type :kafka-cluster
+   :common-config {"ssl.endpoint.identification.algorithm" "https"
+                   "sasl.mechanism" "PLAIN"
+                   "request.timeout.ms" "20000"
+                   "bootstrap.servers" "pkc-4yyd6.us-east1.gcp.confluent.cloud:9092"
+                   "retry.backoff.ms" "500"
+                   "security.protocol" "SASL_SSL"
+                   "sasl.jaas.config" (System/getenv "DX_JAAS_CONFIG_DEV")}
+   :consumer-config {"key.deserializer"
+                     "org.apache.kafka.common.serialization.StringDeserializer"
+                     "value.deserializer"
+                     "org.apache.kafka.common.serialization.StringDeserializer"}
+   :producer-config {"key.serializer"
+                     "org.apache.kafka.common.serialization.StringSerializer"
+                     "value.serializer"
+                     "org.apache.kafka.common.serialization.StringSerializer"}})
+
 (def gv-test-app
   (p/init
    {:type :genegraph-app
@@ -235,40 +255,43 @@
     :processors gv-processors
     :http-servers gv-http-server}))
 
-(def kafka-consumer-group "genegraph-gene-validity-dev")
+(def kafka-consumer-group "genegraph-gene-validity-dev-0")
 
 ;; Obviously update to dx-ccloud for real production
-(def gv-prod-app
+(def gv-transformer-prod
   (p/init
    {:type :genegraph-app
-    :kafka-clusters {:data-exchange local-cluster}
+    :kafka-clusters {:data-exchange dx-ccloud-dev}
     :topics {:gene-validity-gci
              {:name :gene-validity-gci
               :type :kafka-consumer-group-topic
               :kafka-consumer-group kafka-consumer-group
               :kafka-cluster :data-exchange
-              :kafka-topic "gene_validity_raw"}
+              :kafka-topic "gene_validity_complete"}
              :gene-validity-sepio
              {:name :gene-validity-sepio
-              :type :simple-queue-topic}
-             :fetch-base-events
-             {:name :fetch-base-events
-              :type :simple-queue-topic}
-             :base-data
-             {:name :base-data
-              :type :simple-queue-topic}}
-    :storage {:gv-tdb
-              {:type :rdf
-               :name :gv-tdb
-               :path "/users/tristan/data/genegraph-neo/gv_tdb"}}
-    :processors gv-processors
-    :http-servers gv-http-server}))
+              :type :kafka-producer-topic
+              :kafka-cluster :data-exchange
+              :kafka-topic "gene_validity_sepio"}}
+    :processors {:gene-validity-transform
+                 {:type :parallel-processor
+                  :name :gene-validity-transform
+                  :subscribe :gene-validity-gci
+                  :interceptors `[gci-model/add-gci-model
+                                  sepio-model/add-model
+                                  add-iri
+                                  add-publish-actions]}}}))
 
 (defn -main [& args]
   (println "Starting genegraph-gene-validity")
   (p/start gv-test-app))
 
 (comment
+  (with-open [secrets-client (SecretManagerServiceClient/create)]
+    (-> (.accessSecretVersion secrets-client "projects/522856288592/secrets/dev-genegraph-dev-dx-jaas/versions/latest")
+        )
+    )
+  
 
   (def gv-event-path "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz")
 
