@@ -268,6 +268,9 @@
     {:gene-validity-server
      {:type :http-server
       :name :gene-validity-server
+      ::http/host "0.0.0.0"
+      ::http/allowed-origins {:allowed-origins (constantly true)
+                              :creds true}
       ::http/routes
       [["/ready"
         :get (fn [_] {:status 200 :body "server is ready"})

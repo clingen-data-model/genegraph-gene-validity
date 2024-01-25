@@ -6,12 +6,14 @@ pom.xml.asc
 /classes/
 /target/
 /checkouts/
+/data/
 .lein-deps-sum
 .lein-repl-history
 .lein-plugins/
 .lein-failures
 .nrepl-port
 .cpcache/
+.dir-locals.el
 
 # Temp Files
 *.orig
