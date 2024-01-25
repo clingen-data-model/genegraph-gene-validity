@@ -10,7 +10,8 @@
    :path       "target"
    :project    "deps.edn"
    :target-dir "target/classes"
-   :uber-file  "target/app.jar"})
+   :uber-file  "target/app.jar"
+   :exclude [#"META-INF/license.*"]})
 
 (defn uber
   "Throw or make an uberjar from source."

@@ -179,7 +179,13 @@
     (conj
      (lacinia-pedestal/graphiql-asset-routes "/assets/graphiql")
      ["/ide" :get (lacinia-pedestal/graphiql-ide-handler {})
-      :route-name ::lacinia-pedestal/graphql-ide])
+      :route-name ::lacinia-pedestal/graphql-ide]
+     ["/ready"
+     :get (fn [_] {:status 200 :body "server is ready"})
+     :route-name ::readiness]
+     ["/live"
+      :get (fn [_] {:status 200 :body "server is live"})
+      :route-name ::liveness])
     ::http/type :jetty
     ::http/port 8888
     ::http/join? false
@@ -251,9 +257,28 @@
     :storage {:gv-tdb
               {:type :rdf
                :name :gv-tdb
-               :path "/users/tristan/data/genegraph-neo/gv_tdb"}}
+               :path "data/gv_tdb"}}
     :processors gv-processors
     :http-servers gv-http-server}))
+
+(def gv-deployment-test
+  (p/init
+   {:type :genegraph-app
+    :http-servers
+    {:gene-validity-server
+     {:type :http-server
+      :name :gene-validity-server
+      ::http/routes
+      [["/ready"
+        :get (fn [_] {:status 200 :body "server is ready"})
+        :route-name ::readiness]
+       ["/live"
+        :get (fn [_] {:status 200 :body "server is live"})
+        :route-name ::liveness]]
+      ::http/type :jetty
+      ::http/port 8888
+      ::http/join? false
+      ::http/secure-headers nil}}}))
 
 (def kafka-consumer-group "genegraph-gene-validity-dev-0")
 
@@ -282,16 +307,21 @@
                                   add-iri
                                   add-publish-actions]}}}))
 
+(def terminate (promise))
+
 (defn -main [& args]
   (println "Starting genegraph-gene-validity")
-  (p/start gv-test-app))
+  (p/start gv-deployment-test)
+  @terminate)
 
 (comment
   (with-open [secrets-client (SecretManagerServiceClient/create)]
     (-> (.accessSecretVersion secrets-client "projects/522856288592/secrets/dev-genegraph-dev-dx-jaas/versions/latest")
         )
     )
-  
+
+  (p/start gv-deployment-test)
+  (p/stop gv-deployment-test)
 
   (def gv-event-path "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz")
 
@@ -455,8 +485,6 @@ a ?t2 ;
    (get-in gv-app [:topics :gene-validity-gci])
    "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz")
 
-
-
   (event-store/with-event-reader [r gv-event-path]
     (->> (event-store/event-seq r)
          #_(filter #(re-find #"7d595dc4" (::event/value %)))
@@ -479,6 +507,8 @@ a ?t2 ;
                           ::event/skip-publish-effects true)
                    gv-xform
                    ::event/publish))))
+
+  ;; gcloud builds submit --region=us-east1 --tag us-east1-docker.pkg.dev/clingen-dev/genegraph-docker-repo/genegraph-gene-validity:v2
 
   ;; zeb 2 example
   (def zeb2
