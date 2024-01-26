@@ -11,6 +11,7 @@
             [genegraph.gene-validity.sepio-model :as sepio-model]
             [genegraph.gene-validity.base :as base]
             [genegraph.gene-validity.graphql.schema :as gql-schema]
+            [genegraph.gene-validity.versioning :as versioning]
             [com.walmartlabs.lacinia.pedestal2 :as lacinia-pedestal]
             [com.walmartlabs.lacinia.pedestal.internal :as internal]
             [com.walmartlabs.lacinia.resolve :as resolve]
@@ -27,20 +28,16 @@
            [com.google.protobuf ByteString])
   (:gen-class))
 
+(def env
+  (atom
+   {:kafka-user "User:2189780"
+    :kafka-consumer-group "genegraph-gene-validity-dev-0"
+    :kafka-jaas-config (System/getenv "DX_JAAS_CONFIG_DEV")}))
 
 (def prop-query
   (rdf/create-query "select ?x where {?x a ?type}"))
 
-;; Deprecated (but maybe test first)
-(defn add-action [event]
-  (assoc event
-         ::event/action
-         (if (re-find #"\"publishClassification\": ?true"
-                      (::event/value event))
-           :publish
-           :unpublish)))
-
-(defn add-iri [event]
+(defn add-iri-fn [event]
   (assoc event
          ::event/iri
          (-> (prop-query
@@ -49,7 +46,12 @@
              first
              str)))
 
-(defn add-publish-actions [event]
+(def add-iri
+  (interceptor/interceptor
+   {:name ::add-iri
+    :enter (fn [e] (add-iri-fn e))}))
+
+(defn add-publish-actions-fn [event]
   (event/publish event
                  (-> event
                      (set/rename-keys {::event/iri ::event/key
@@ -57,18 +59,23 @@
                      (select-keys [::event/key ::event/data])
                      (assoc ::event/topic :gene-validity-sepio))))
 
+(def add-publish-actions
+  (interceptor/interceptor
+   {:name ::add-publish-actions
+    :enter (fn [e] (add-publish-actions-fn e))}))
+
 (defn has-publish-action [m]
   (< 0 (count ((rdf/create-query "select ?x where { ?x :bfo/realizes :cg/PublisherRole } ") m))))
 
-(defn store-curation [event]
-  (println
-   (str
-    (subs (::event/key event) 67)
-    " "
-    (has-publish-action (::event/data event))))
+(defn store-curation-fn [event]
   (if (has-publish-action (::event/data event))
     (event/store event :gv-tdb (::event/key event) (::event/data event))
     (event/delete event :gv-tdb (::event/key event))))
+
+(def store-curation
+  (interceptor/interceptor
+   {:name ::store-curation
+    :enter (fn [e] (store-curation-fn e))}))
 
 (def jena-transaction-interceptor
   (interceptor/interceptor
@@ -111,62 +118,106 @@
     :leave internal/on-leave-query-parser
     :error internal/on-error-query-parser}))
 
+;;;; Application config
+
+;; Object store
+
 (def gcs-handle
   {:type :gcs
    :bucket "genegraph-framework-dev"})
 
 (def fs-handle
   {:type :file
-   :base "/users/tristan/data/genegraph-neo/"})
+   :base "data/"})
 
-(def base-fs-handle
-  {:type :file
-   :base "/users/tristan/data/genegraph-neo/new-base/"})
+;; Kafka
 
-(def gv-processors
-  {:gene-validity-transform
-   {:type :parallel-processor
-    :name :gene-validity-transform
-    :subscribe :gene-validity-gci
-    :interceptors `[gci-model/add-gci-model
-                    sepio-model/add-model
-                    add-iri
-                    add-publish-actions]}
-   :gene-validity-sepio-reader
-   {:type :processor
-    :subscribe :gene-validity-sepio
-    :name :gene-validity-sepio-reader
-    :interceptors `[store-curation]}
-   :fetch-base-file
-   {:name :fetch-base-file
-    :type :processor
-    :subscribe :fetch-base-events
-    :interceptors `[base/fetch-file
-                    base/publish-base-file]
-    ::event/metadata {::base/handle base-fs-handle}}
-   :import-base-file
-   {:name :import-base-file
-    :type :processor
-    :subscribe :base-data
-    :interceptors `[base/read-base-data
-                    base/store-model]}
-   :graphql-api
-   {:name :graphql-api
-    :type :processor
-    :interceptors [#_lacinia-pedestal/initialize-tracing-interceptor
-                   jena-transaction-interceptor
-                   lacinia-pedestal/json-response-interceptor
-                   lacinia-pedestal/error-response-interceptor
-                   lacinia-pedestal/body-data-interceptor
-                   lacinia-pedestal/graphql-data-interceptor
-                   lacinia-pedestal/status-conversion-interceptor
-                   lacinia-pedestal/missing-query-interceptor
-                   query-parser-interceptor
-                   lacinia-pedestal/disallow-subscriptions-interceptor
-                   lacinia-pedestal/prepare-query-interceptor
-                   #_lacinia-pedestal/enable-tracing-interceptor
-                   lacinia-pedestal/query-executor-handler]
-    :init-fn init-graphql-processor}})
+(def data-exchange
+  {:type :kafka-cluster
+   :kafka-user (:kafka-user @env)
+   :common-config {"ssl.endpoint.identification.algorithm" "https"
+                   "sasl.mechanism" "PLAIN"
+                   "request.timeout.ms" "20000"
+                   "bootstrap.servers" "pkc-4yyd6.us-east1.gcp.confluent.cloud:9092"
+                   "retry.backoff.ms" "500"
+                   "security.protocol" "SASL_SSL"
+                   "sasl.jaas.config" (:kafka-jaas-config @env)}
+   :consumer-config {"key.deserializer"
+                     "org.apache.kafka.common.serialization.StringDeserializer"
+                     "value.deserializer"
+                     "org.apache.kafka.common.serialization.StringDeserializer"}
+   :producer-config {"key.serializer"
+                     "org.apache.kafka.common.serialization.StringSerializer"
+                     "value.serializer"
+                     "org.apache.kafka.common.serialization.StringSerializer"}})
+
+;;;; Transform
+
+(def gene-validity-version-store
+  {:name :gene-validity-version-store
+   :type :rocksdb
+   :path "data/version-store"})
+
+(def transform-processor
+  {:type :parallel-processor
+   :name :gene-validity-transform
+   :subscribe :gene-validity-gci
+   :backing-store :gene-validity-version-store
+   :interceptors [gci-model/add-gci-model
+                  sepio-model/add-model
+                  add-iri
+                  add-publish-actions
+                  versioning/add-version]})
+
+;;;; Base
+
+(def fetch-base-processor
+  {:name :fetch-base-file
+   :type :processor
+   :subscribe :fetch-base-events
+   :interceptors [base/fetch-file
+                  base/publish-base-file]
+   ::event/metadata {::base/handle fs-handle}})
+
+;;;; GraphQL
+
+(def gv-tdb
+  {:type :rdf
+   :name :gv-tdb
+   :path "data/gv-tdb"})
+
+(def import-base-processor
+  {:name :import-base-file
+   :type :processor
+   :subscribe :base-data
+   :backing-store :gv-tdb
+   :interceptors [base/read-base-data
+                  base/store-model]})
+
+(def import-gv-curations
+  {:type :processor
+   :subscribe :gene-validity-sepio
+   :name :gene-validity-sepio-reader
+   :backing-store :gv-tdb
+   :interceptors [store-curation]})
+
+(def graphql-api
+  {:name :graphql-api
+   :type :processor
+   :interceptors [#_lacinia-pedestal/initialize-tracing-interceptor
+                  jena-transaction-interceptor
+                  lacinia-pedestal/json-response-interceptor
+                  lacinia-pedestal/error-response-interceptor
+                  lacinia-pedestal/body-data-interceptor
+                  lacinia-pedestal/graphql-data-interceptor
+                  lacinia-pedestal/status-conversion-interceptor
+                  lacinia-pedestal/missing-query-interceptor
+                  query-parser-interceptor
+                  lacinia-pedestal/disallow-subscriptions-interceptor
+                  lacinia-pedestal/prepare-query-interceptor
+                  #_lacinia-pedestal/enable-tracing-interceptor
+                  lacinia-pedestal/query-executor-handler]
+   :init-fn init-graphql-processor})
 
 (def gv-http-server
   {:gene-validity-server
@@ -194,109 +245,62 @@
     ::http/join? false
     ::http/secure-headers nil}})
 
-(def local-cluster
-  {:local
-   {:common-config {"bootstrap.servers" "localhost:9092"}
-    :producer-config {"key.serializer"
-                      "org.apache.kafka.common.serialization.StringSerializer",
-                      "value.serializer"
-                      "org.apache.kafka.common.serialization.StringSerializer"}
-    :consumer-config {"key.deserializer"
-                      "org.apache.kafka.common.serialization.StringDeserializer"
-                      "value.deserializer"
-                      "org.apache.kafka.common.serialization.StringDeserializer"}}})
+(def gv-test-app-def
+  {:type :genegraph-app
+   :topics {:gene-validity-gci
+            {:name :gene-validity-gci
+             :type :simple-queue-topic}
+            :gene-validity-sepio
+            {:name :gene-validity-sepio
+             :type :simple-queue-topic}
+            :fetch-base-events
+            {:name :fetch-base-events
+             :type :simple-queue-topic}
+            :base-data
+            {:name :base-data
+             :type :simple-queue-topic}}
+   :storage {:gv-tdb gv-tdb
+             :gene-validity-version-store gene-validity-version-store}
+   :processors {:gene-validity-transform transform-processor
+                :fetch-base-file fetch-base-processor
+                :import-base-file import-base-processor
+                :import-gv-curations import-gv-curations
+                :graphql-api graphql-api}
+   :http-servers gv-http-server})
 
-(def dx-ccloud
-  {:type :kafka-cluster
-   :common-config {"ssl.endpoint.identification.algorithm" "https"
-                   "sasl.mechanism" "PLAIN"
-                   "request.timeout.ms" "20000"
-                   "bootstrap.servers" "pkc-4yyd6.us-east1.gcp.confluent.cloud:9092"
-                   "retry.backoff.ms" "500"
-                   "security.protocol" "SASL_SSL"
-                   "sasl.jaas.config" (System/getenv "DX_JAAS_CONFIG")}
-   :consumer-config {"key.deserializer"
-                     "org.apache.kafka.common.serialization.StringDeserializer"
-                     "value.deserializer"
-                     "org.apache.kafka.common.serialization.StringDeserializer"}
-   :producer-config {"key.serializer"
-                     "org.apache.kafka.common.serialization.StringSerializer"
-                     "value.serializer"
-                     "org.apache.kafka.common.serialization.StringSerializer"}})
+(comment
+  (def gv-test-app
+    (p/init gv-test-app-def))
+  (p/start gv-test-app)
+  (p/stop gv-test-app)
 
-(def dx-ccloud-dev
-  {:type :kafka-cluster
-   :common-config {"ssl.endpoint.identification.algorithm" "https"
-                   "sasl.mechanism" "PLAIN"
-                   "request.timeout.ms" "20000"
-                   "bootstrap.servers" "pkc-4yyd6.us-east1.gcp.confluent.cloud:9092"
-                   "retry.backoff.ms" "500"
-                   "security.protocol" "SASL_SSL"
-                   "sasl.jaas.config" (System/getenv "DX_JAAS_CONFIG_DEV")}
-   :consumer-config {"key.deserializer"
-                     "org.apache.kafka.common.serialization.StringDeserializer"
-                     "value.deserializer"
-                     "org.apache.kafka.common.serialization.StringDeserializer"}
-   :producer-config {"key.serializer"
-                     "org.apache.kafka.common.serialization.StringSerializer"
-                     "value.serializer"
-                     "org.apache.kafka.common.serialization.StringSerializer"}})
+  (def e1
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
+      (->> (event-store/event-seq r)
+           first)))
+  
+  (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+             e1)
+  (keys
+   (storage/read @(get-in gv-test-app [:storage :gene-validity-version-store :instance])
+                 "http://dataexchange.clinicalgenome.org/gci/55ca8d81-f718-428e-ab59-75f7a9182d08"))
 
-(def gv-test-app
-  (p/init
-   {:type :genegraph-app
-    :topics {:gene-validity-gci
-             {:name :gene-validity-gci
-              :type :simple-queue-topic}
-             :gene-validity-sepio
-             {:name :gene-validity-sepio
-              :type :simple-queue-topic}
-             :fetch-base-events
-             {:name :fetch-base-events
-              :type :simple-queue-topic}
-             :base-data
-             {:name :base-data
-              :type :simple-queue-topic}}
-    :storage {:gv-tdb
-              {:type :rdf
-               :name :gv-tdb
-               :path "data/gv_tdb"}}
-    :processors gv-processors
-    :http-servers gv-http-server}))
-
-(def gv-deployment-test
-  (p/init
-   {:type :genegraph-app
-    :http-servers
-    {:gene-validity-server
-     {:type :http-server
-      :name :gene-validity-server
-      ::http/host "0.0.0.0"
-      ::http/allowed-origins {:allowed-origins (constantly true)
-                              :creds true}
-      ::http/routes
-      [["/ready"
-        :get (fn [_] {:status 200 :body "server is ready"})
-        :route-name ::readiness]
-       ["/live"
-        :get (fn [_] {:status 200 :body "server is live"})
-        :route-name ::liveness]]
-      ::http/type :jetty
-      ::http/port 8888
-      ::http/join? false
-      ::http/secure-headers nil}}}))
-
-(def kafka-consumer-group "genegraph-gene-validity-dev-0")
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-gci]) %))))
+  
+  )
 
 ;; Obviously update to dx-ccloud for real production
-(def gv-transformer-prod
+#_(def gv-transformer-prod
   (p/init
    {:type :genegraph-app
-    :kafka-clusters {:data-exchange dx-ccloud-dev}
+    :kafka-clusters {:data-exchange data-exchange}
     :topics {:gene-validity-gci
              {:name :gene-validity-gci
               :type :kafka-consumer-group-topic
-              :kafka-consumer-group kafka-consumer-group
+              :kafka-consumer-group (:kafka-consumer-group @env)
               :kafka-cluster :data-exchange
               :kafka-topic "gene_validity_complete"}
              :gene-validity-sepio
@@ -317,7 +321,7 @@
 
 (defn -main [& args]
   (println "Starting genegraph-gene-validity")
-  (p/start gv-deployment-test)
+  (p/start (p/init gv-test-app-def))
   @terminate)
 
 (comment

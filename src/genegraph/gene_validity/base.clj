@@ -16,7 +16,8 @@
             [genegraph.gene-validity.base.gene :as gene]
             [genegraph.gene-validity.base.affiliations]
             [genegraph.gene-validity.base.features]
-            [genegraph.gene-validity.base.ucsc-cytoband])
+            [genegraph.gene-validity.base.ucsc-cytoband]
+            [io.pedestal.interceptor :as interceptor])
   (:import [java.io File InputStream OutputStream]
            [java.nio.channels Channels]))
 
@@ -38,8 +39,7 @@
 (defn success? [{status ::http-status}]
   (and (<= 200 status) (< status 400)))
 
-(defn fetch-file [event]
-  (println "fetching " (get-in event [::event/data :source]))
+(defn fetch-file-fn [event]
   (let [response (hc/get (get-in event [::event/data :source])
                          {:http-client (hc/build-http-client {:redirect-policy :always})
                           :as :stream})]
@@ -49,12 +49,20 @@
     (assoc event
            ::http-status (:status response))))
 
-(defn publish-base-file [event]
+(def fetch-file
+  {:name ::fetch-file
+   :enter (fn [e] (fetch-file-fn e))})
+
+(defn publish-base-file-fn [event]
   (event/publish event {::event/topic :base-data
                         ::event/key (get-in event [::event/data :name])
                         ::event/data (-> event
                                          ::event/data
                                          (assoc :source (output-handle event)))}))
+
+(def publish-base-file
+  {:name ::publish-base-file
+   :enter (fn [e] (publish-base-file e))})
 
 (def fs-handle
   {:type :file
@@ -65,15 +73,23 @@
    :bucket "genegraph-framework-dev"
    :base "new-base/"})
 
-(defn read-base-data [event]
+(defn read-base-data-fn [event]
   (assoc event ::model (rdf/as-model (::event/data event))))
 
-(defn store-model [event]
-  (println "importing " (::event/key event))
+(def read-base-data
+  (interceptor/interceptor
+   {:name ::read-base-data
+    :enter (fn [e] (read-base-data-fn e))}))
+
+(defn store-model-fn [event]
   (event/store event
                :gv-tdb
                (get-in event [::event/data :name])
                (::model event)))
+
+(def store-model
+  {:name ::store-model
+   :enter (fn [e] (store-model e))})
 
 (comment
   ;; publish all rdf-serialized
@@ -102,7 +118,7 @@
                      ::handle fs-handle}))
        (run! #(p/publish (get-in test-app [:topics :fetch-base-events]) %)))
 
-    (->> (-> "base.edn" io/resource slurp edn/read-string)
+  (->> (-> "base.edn" io/resource slurp edn/read-string)
        (filter #(isa? (:format %) ::features))
        (map (fn [x] {::event/data x
                      ::handle fs-handle}))
@@ -171,20 +187,20 @@
             ((rdf/create-query "select ?x where { ?x a :so/SequenceFeature } limit 5")
              db)))
 
-    (let [db @(get-in test-app [:storage :gv-tdb :instance])]
+  (let [db @(get-in test-app [:storage :gv-tdb :instance])]
     db
     (rdf/tx db
             ((rdf/create-query "select ?x where { ?x a :cg/Affiliation } limit 5")
              db)))
 
-    (let [db @(get-in test-app [:storage :gv-tdb :instance])]
+  (let [db @(get-in test-app [:storage :gv-tdb :instance])]
     db
     (rdf/tx db
             ((rdf/create-query "select ?x where { ?x a :geno/SequenceFeatureLocation } limit 5")
              db)))
 
-    (processor/process-event (get-in test-app [:processors :import-base-file])
-                             test-base-event)
+  (processor/process-event (get-in test-app [:processors :import-base-file])
+                           test-base-event)
 
   )
 

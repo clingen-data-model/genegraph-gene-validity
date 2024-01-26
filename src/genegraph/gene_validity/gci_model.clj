@@ -4,7 +4,8 @@
             [clojure.string :as s]
             [clojure.walk :refer [postwalk]]
             [clojure.edn :as edn]
-            [clojure.data.json :as json])
+            [clojure.data.json :as json]
+            [io.pedestal.interceptor :as interceptor])
   (:import [java.io ByteArrayInputStream]))
 
 (def base "http://dataexchange.clinicalgenome.org/gci/")
@@ -285,7 +286,7 @@
 (defn append-context [gdm-json]
   (str context "," (subs gdm-json 1)))
 
-(defn add-gci-model [event]
+(defn add-gci-model-fn [event]
   (assoc event
          :gene-validity/gci-model
          (-> (::event/data event)
@@ -295,5 +296,10 @@
              .getBytes
              ByteArrayInputStream.
              (rdf/read-rdf :json-ld))))
+
+(def add-gci-model
+  (interceptor/interceptor
+   {:name ::add-gci-model
+    :enter (fn [e] (add-gci-model-fn e))}))
 
 

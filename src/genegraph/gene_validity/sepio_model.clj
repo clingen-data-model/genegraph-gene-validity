@@ -3,7 +3,8 @@
             [genegraph.framework.storage.rdf :as rdf]
             [genegraph.framework.event :as event]
             [genegraph.gene-validity.names]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [io.pedestal.interceptor :as interceptor])
   (:import [java.time Instant]))
 
 (def construct-params
@@ -121,8 +122,13 @@
         unlink-variant-scores-when-proband-scores-exist
         unlink-segregations-when-no-proband-and-lod-scores)))
 
-(defn add-model [event]
+(defn add-model-fn [event]
   (assoc event
          :gene-validity/model
          (gci-data->sepio-model (:gene-validity/gci-model event)
                                 (params-for-construct event))))
+
+(def add-model
+  (interceptor/interceptor
+   {:name ::add-model
+    :enter (fn [e] (add-model-fn e))}))

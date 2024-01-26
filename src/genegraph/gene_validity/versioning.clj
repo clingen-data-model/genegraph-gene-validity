@@ -118,6 +118,7 @@
           store-this-version)
       event-with-approval-date)))
 
-(defn add-version [event]
-  (calculate-version event))
-
+(def add-version
+  (interceptor/interceptor
+   {:name ::add-version
+    :enter (fn [e] (calculate-version e))}))
