@@ -175,6 +175,9 @@
     :endpoints [{:path "/api"
                  :processor :graphql-api
                  :method :post}]
+    ::http/host "0.0.0.0"
+    ::http/allowed-origins {:allowed-origins (constantly true)
+                            :creds true}
     ::http/routes
     (conj
      (lacinia-pedestal/graphiql-asset-routes "/assets/graphiql")
@@ -415,53 +418,6 @@
                  (rdf/resource "https://www.ncbi.nlm.nih.gov/gene/55847" db))
                 first)))
 
-  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
-    (rdf/tx db
-            (-> (rdf/resource "https://www.ncbi.nlm.nih.gov/gene/55847" db)
-                (rdf/ld-> [:skos/prefLabel]))))
-
-  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
-    (rdf/tx db
-            (-> (rdf/resource "mondo:0100038" db)
-                #_(rdf/ld-> [:skos/prefLabel]))))
-
-  (type @(get-in gv-test-app [:storage :gv-tdb :instance]))
-
-  (def moi-and-classification
-    (rdf/create-query
-     "select distinct ?a where { ?x a ?t ;
-:sepio/has-qualifier ?moi .
-?a :sepio/has-subject ?x ;
-a ?t2 ;
-:sepio/has-object ?classification ;
-:sepio/has-evidence + ?p .
-?p a ?t3}"))
-
-  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
-    db
-    (rdf/tx db
-            (->
-             (moi-and-classification
-              db
-              {:t :sepio/GeneValidityProposition
-               :t2 :sepio/GeneValidityEvidenceLevelAssertion
-               :moi :hp/AutosomalRecessiveInheritance
-               :classification :sepio/ModerateEvidence
-               :t3 :sepio/NullVariantEvidenceLine})
-             count)))
-
-  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
-    (rdf/tx db
-            (->
-             ((rdf/create-query "select ?p where { ?p a ?t }")
-              db
-              {:t :sepio/NullVariantEvidenceLine})
-             first
-             (rdf/ld-> [[:sepio/has-evidence :<]
-                        [:sepio/has-evidence :<]]))))
-  
-
-
   ;; Load all gene validity stuff into Genegraph (takes ~20m with parallel execution
   (time
    (event-store/with-event-reader [r gv-event-path]
@@ -484,46 +440,10 @@ a ?t2 ;
            gv-xform
            :gene-validity/model)))))
   
-  (kafka/topic->event-file
-   (get-in gv-app [:topics :gene-validity-gci])
-   "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz")
-
-  (event-store/with-event-reader [r gv-event-path]
-    (->> (event-store/event-seq r)
-         #_(filter #(re-find #"7d595dc4" (::event/value %)))
-         #_(take 1)
-         #_(map #(-> %
-                     (assoc ::event/skip-local-effects true
-                            ::event/skip-publish-effects true)
-                     gv-xform
-                     ::event/publish))))
-
-  (event-store/with-event-reader [r gv-event-path]
-    (->> (event-store/event-seq r)
-         (take 1)
-         
-         #_(filter #(re-find #"\"10\"" (::event/value %)))
-         #_count
-         
-         (map #(-> %
-                   (assoc ::event/skip-local-effects true
-                          ::event/skip-publish-effects true)
-                   gv-xform
-                   ::event/publish))))
 
   ;; gcloud builds submit --region=us-east1 --tag us-east1-docker.pkg.dev/clingen-dev/genegraph-docker-repo/genegraph-gene-validity:v2
 
-  ;; zeb 2 example
-  (def zeb2
-    (event-store/with-event-reader [r gv-event-path]
-      (->> (event-store/event-seq r)
-           (filter #(re-find #"c16423b1" (::event/value %)))
-           last)))
   
-  (-> ((rdf/create-query "select ?el where { ?el a ?type }")
-       (-> zeb2 gv-xform :gene-validity/model)
-       {:type :sepio/OverallAutosomalDominantDeNovoVariantEvidenceLine})
-      first
-      (rdf/ld-> [:sepio/has-evidence])))
+)
 
 
