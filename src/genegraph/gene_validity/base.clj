@@ -17,7 +17,8 @@
             [genegraph.gene-validity.base.affiliations]
             [genegraph.gene-validity.base.features]
             [genegraph.gene-validity.base.ucsc-cytoband]
-            [io.pedestal.interceptor :as interceptor])
+            [io.pedestal.interceptor :as interceptor]
+            [io.pedestal.log :as log])
   (:import [java.io File InputStream OutputStream]
            [java.nio.channels Channels]))
 
@@ -50,8 +51,9 @@
            ::http-status (:status response))))
 
 (def fetch-file
-  {:name ::fetch-file
-   :enter (fn [e] (fetch-file-fn e))})
+  (interceptor/interceptor
+   {:name ::fetch-file
+    :enter (fn [e] (fetch-file-fn e))}))
 
 (defn publish-base-file-fn [event]
   (event/publish event {::event/topic :base-data
@@ -61,8 +63,9 @@
                                          (assoc :source (output-handle event)))}))
 
 (def publish-base-file
-  {:name ::publish-base-file
-   :enter (fn [e] (publish-base-file e))})
+  (interceptor/interceptor
+   {:name ::publish-base-file
+    :enter (fn [e] (publish-base-file-fn e))}))
 
 (def fs-handle
   {:type :file
@@ -88,8 +91,9 @@
                (::model event)))
 
 (def store-model
-  {:name ::store-model
-   :enter (fn [e] (store-model e))})
+  (interceptor/interceptor
+   {:name ::store-model
+    :enter (fn [e] (store-model-fn e))}))
 
 (comment
   ;; publish all rdf-serialized
