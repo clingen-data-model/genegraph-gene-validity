@@ -574,9 +574,13 @@
   (log/info :fn ::-main
             :msg "starting genegraph"
             :function (:function env))
-  (-> (get genegraph-function (:function env) gv-test-app-def)
-      p/init
-      p/start))
+  (let [app (p/init (get genegraph-function (:function env) gv-test-app-def))]
+    (.addShutdownHook (Runtime/getRuntime)
+                      (Thread. (fn []
+                                 (log/info :fn ::-main
+                                           :msg "stopping genegraph")
+                                 (p/stop app))))
+    (p/start app)))
 
 (comment
 
