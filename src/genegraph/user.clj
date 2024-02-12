@@ -380,11 +380,7 @@
    :kafka-topic "gene_validity_complete"}
   "/users/tristan/data/genegraph-neo/gv_events_complete_2024-01-12.edn.gz")
 
- (event-store/with-event-reader [r "/users/tristan/desktop/gv_events.edn.gz"]
-   (-> (event-store/event-seq r)
-       first
-       ::event/timestamp
-       Instant/ofEpochMilli))
+
 
 
  (event-store/with-event-reader [r "/Users/tristan/Desktop/gv_events_2024-01-12.edn.gz"]
@@ -735,4 +731,23 @@
          (map #(-> % event/deserialize ::event/data :event_type))
          frequencies))
   
+  )
+
+
+
+(comment
+  (kafka/topic->event-file
+   {:name :gv-sepio
+    :type :kafka-reader-topic
+    :kafka-cluster dx-ccloud-dev
+    :kafka-topic "gene_validity_sepio"}
+   "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz")
+
+ (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz"]
+   (-> (event-store/event-seq r)
+       first
+       (assoc ::event/format ::rdf/n-triples)
+       event/deserialize
+       ::event/data
+       rdf/pp-model))
   )

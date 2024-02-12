@@ -13,6 +13,8 @@
  "rdf" "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
  "owl" "http://www.w3.org/2002/07/owl#"
  "skos" "http://www.w3.org/2004/02/skos/core#"
+ "ncbigene" "https://www.ncbi.nlm.nih.gov/gene/"
+ "prov" "http://www.w3.org/ns/prov#"
  "void" "http://rdfs.org/ns/void"})
 
 
@@ -40,9 +42,16 @@
   :pco/Family "http://purl.obolibrary.org/obo/PCO_0000020"
   :ro/IsCausalGermlineMutationIn "http://purl.obolibrary.org/obo/RO_0004013"
   :ro/has-member "http://purl.obolibrary.org/obo/RO_0002351"
+  :sepio/Assertion "http://purl.obolibrary.org/obo/SEPIO_0000001"
+  :sepio/Proposition "http://purl.obolibrary.org/obo/SEPIO_0000000"
   :sepio/ApproverRole "http://purl.obolibrary.org/obo/SEPIO_0000155"
   :sepio/EvidenceItem "http://purl.obolibrary.org/obo/SEPIO_0000149"
+  :sepio/EvidenceLine "http://purl.obolibrary.org/obo/SEPIO_0000002"
+  :sepio/ValueSet "http://purl.obolibrary.org/obo/SEPIO_0000412"
+  :sepio/CaseControlEvidenceItem "http://purl.obolibrary.org/obo/SEPIO_0004170"
+  :sepio/VariantEvidenceItem "http://purl.obolibrary.org/obo/SEPIO_0004116"
   :sepio/FamilyCosegregation "http://purl.obolibrary.org/obo/SEPIO_0000247"
+  :ga4gh/VariationDescriptor "https://terms.ga4gh.org/VariationDescriptor"
   :sepio/GeneValidityEvidenceLevelAssertion "http://purl.obolibrary.org/obo/SEPIO_0004002"
   :sepio/GeneValidityEvidenceLevelAutoClassification "http://purl.obolibrary.org/obo/SEPIO_0004098"
   :sepio/GeneValidityProposition "http://purl.obolibrary.org/obo/SEPIO_0004001"

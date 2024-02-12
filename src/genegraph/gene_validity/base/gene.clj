@@ -3,7 +3,8 @@
             [clojure.java.io :as io]
             [clojure.string :as s]
             [genegraph.framework.storage.rdf :as rdf]
-            [genegraph.framework.storage :as storage]))
+            [genegraph.framework.storage :as storage]
+            [io.pedestal.log :as log]))
 
 ;; symbol -> skos:prefLabel ? rdf:label
 ;; name -> skos:altLabel 
@@ -66,6 +67,7 @@
           ["https://www.genenames.org/" :rdf/type :void/Dataset])))
 
 (defmethod rdf/as-model :genegraph.gene-validity.base/hgnc [{:keys [source]}]
+  (log/info :fn ::rdf/as-model :format :genegraph.gene-validity.base/hgnc)
   (with-open [r (io/reader (storage/->input-stream source))]
     (-> (json/read r :key-fn keyword)
         genes-as-triple

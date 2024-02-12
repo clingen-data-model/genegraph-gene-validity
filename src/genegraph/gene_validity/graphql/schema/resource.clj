@@ -1,4 +1,3 @@
-
 (ns genegraph.gene-validity.graphql.schema.resource
   "Definitions for model of RDFResource objects"
   (:require [genegraph.framework.storage.rdf :as rdf]
@@ -39,7 +38,7 @@
                     :description "The label for this resouce."
                     :resolve (fn [_ _ value]
                                (rdf/ld1->* value
-                                           [:skos/preferred-label
+                                           [:skos/prefLabel
                                             :rdfs/label
                                             :foaf/name
                                             :dc/title]))}

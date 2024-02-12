@@ -45,9 +45,8 @@
 (def default-env
   {:kafka-user "User:2189780"
    :kafka-consumer-group "genegraph-gene-validity-dev-3"
-   :base-fs-handle gcs-base-fs-handle
-   #_{:type :file
-      :base "data/base/"}
+   :base-fs-handle {:type :file
+                    :base "data/base/"}
    :local-data-path "data/"})
 
 (def local-env
@@ -353,16 +352,35 @@
      ::event/skip-publish-effects true})
 
   (->> (-> "base.edn" io/resource slurp edn/read-string)
-       (take 1)
+       (filter #(= ::base/hgnc (:format %)))
        (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
                          {::event/data %})))
 
   (p/process (get-in gv-test-app [:processors :fetch-base-file]) b1)
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
-        ((rdf/create-query "select ?x where { ?x a :rdfs/Datatype }") tdb)))
+      (->> ((rdf/create-query "select ?x where { ?x a :so/Gene }") tdb)
+           (take 5)
+           (map #(rdf/ld1-> % [:skos/prefLabel]))
+           (into []))))
 
-  
+  (def sepio-events-path "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz")
+
+  (event-store/with-event-reader [r sepio-events-path]
+    (->>(event-store/event-seq r)
+       (map #(assoc % ::event/format ::rdf/n-triples))
+       first
+       event/deserialize
+       ::event/data
+       rdf/pp-model))`
+
+  (event-store/with-event-reader [r sepio-events-path]
+    (->>(event-store/event-seq r)
+       (map #(assoc % ::event/format ::rdf/n-triples))
+       (take 1)
+       (run! #(p/publish (get-in gv-test-app
+                                 [:topics :gene-validity-sepio])
+                         %))))
   
   )
 
@@ -694,6 +712,12 @@
 
   ;; gcloud builds submit --region=us-east1 --tag us-east1-docker.pkg.dev/clingen-dev/genegraph-docker-repo/genegraph-gene-validity:v2
 
+  (def sepio-events-path "/users/tristan/data/genegraph-neo/sepio_gv_events.edn.gz")
+
+  (def gv-graphql (p/init gv-graphql-endpoint-def))
+
+  (kafka/topic->event-file (get-in gv-graphql [:topics :gene-validity-sepio])
+                           sepio-events-path)
   
   )
 

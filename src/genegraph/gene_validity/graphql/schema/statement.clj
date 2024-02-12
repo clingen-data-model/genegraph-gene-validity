@@ -1,4 +1,4 @@
-  (ns genegraph.gene-validity.graphql.schema.statement
+(ns genegraph.gene-validity.graphql.schema.statement
   (:require [genegraph.gene-validity.graphql.schema.common :as common]))
 
 (def statement
