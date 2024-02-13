@@ -15,12 +15,14 @@
  "skos" "http://www.w3.org/2004/02/skos/core#"
  "ncbigene" "https://www.ncbi.nlm.nih.gov/gene/"
  "prov" "http://www.w3.org/ns/prov#"
- "void" "http://rdfs.org/ns/void"})
+ "void" "http://rdfs.org/ns/void"
+ "hgnc" "https://identifiers.org/hgnc:"})
 
 
 ;; TODO, switch DC bindings to use prefix and not keyword map.
 (add-keyword-mappings
  {:bfo/realizes "http://purl.obolibrary.org/obo/BFO_0000055"
+  :bfo/has-part "http://purl.obolibrary.org/obo/BFO_0000051"
   :cg/website-legacy-id "http://dataexchange.clinicalgenome.org/terms/website_legacy_id"
   :hp/AutosomalRecessiveInheritance "http://purl.obolibrary.org/obo/HP_0000007"
   :geno/AlleleOrigin "http://purl.obolibrary.org/obo/GENO_0000877"

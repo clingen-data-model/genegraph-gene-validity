@@ -18,6 +18,7 @@
             [genegraph.gene-validity.gci-model :as gci-model]
             [genegraph.gene-validity.sepio-model :as sepio-model]
             [genegraph.gene-validity.versioning :as versioning]
+            [genegraph.gene-validity.actionability :as actionability]
             [portal.api :as portal])
   (:import [java.io File PushbackReader FileOutputStream BufferedWriter FileInputStream BufferedReader]
            [java.nio ByteBuffer]
@@ -750,4 +751,28 @@
        event/deserialize
        ::event/data
        rdf/pp-model))
+  )
+
+
+(comment
+  (kafka/topic->event-file
+   {:name :gv-sepio
+    :type :kafka-reader-topic
+    :kafka-cluster dx-ccloud
+    :serialization :json
+    :kafka-topic "actionability"}
+   "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz")
+
+  (let [tdb @(get-in gv/gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
+        (->> (event-store/event-seq r)
+             (map (fn [e]
+                    (assoc-in e [::storage/storage :gv-tdb] tdb)))
+             first
+             event/deserialize
+             actionability/add-actionability-model-fn
+             ::actionability/model
+             rdf/pp-model))))
+  
   )

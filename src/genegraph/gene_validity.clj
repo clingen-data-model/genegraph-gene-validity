@@ -11,6 +11,7 @@
             [genegraph.framework.env :as env]
             [genegraph.gene-validity.gci-model :as gci-model]
             [genegraph.gene-validity.sepio-model :as sepio-model]
+            [genegraph.gene-validity.actionability :as actionability]
             [genegraph.gene-validity.base :as base]
             [genegraph.gene-validity.graphql.schema :as gql-schema]
             [genegraph.gene-validity.versioning :as versioning]
@@ -25,6 +26,7 @@
             [clojure.edn :as edn])
   (:import [org.apache.jena.sparql.core Transactional]
            [org.apache.jena.query ReadWrite]
+           [org.apache.jena.rdf.model Model]
            [org.apache.kafka.clients.producer KafkaProducer]
            [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors]
            [com.google.cloud.secretmanager.v1 AccessSecretVersionResponse ProjectName Replication Secret SecretManagerServiceClient SecretPayload SecretVersion SecretName]
@@ -102,6 +104,29 @@
 
 (defn has-publish-action [m]
   (< 0 (count ((rdf/create-query "select ?x where { ?x :bfo/realizes :cg/PublisherRole } ") m))))
+
+(def prop-query
+  (rdf/create-query "select ?prop where { ?prop a :sepio/GeneValidityProposition } "))
+
+(def same-as-query
+  (rdf/create-query "select ?x where { ?x :owl/sameAs ?y }"))
+
+;; Jena methods mutate the model, will use this behavior 😱
+(defn replace-hgnc-with-ncbi-gene-fn [event]
+  (rdf/tx (get-in event [::storage/storage :gv-tdb])
+      (let [m (::event/data event)
+            prop (first (prop-query m))
+            hgnc-gene (rdf/ld1-> prop [:sepio/has-subject])
+            ncbi-gene (first (same-as-query (get-in event [::storage/storage :gv-tdb])
+                                            {:y hgnc-gene}))]
+        (.remove m (rdf/construct-statement [prop :sepio/has-subject hgnc-gene]))
+        (.add m (rdf/construct-statement [prop :sepio/has-subject ncbi-gene]))))
+  event)
+
+(def replace-hgnc-with-ncbi-gene
+  (interceptor/interceptor
+   {:name ::replace-hgnc-with-ncbi-gene
+    :enter (fn [e] (replace-hgnc-with-ncbi-gene-fn e))}))
 
 (defn store-curation-fn [event]
   (if (has-publish-action (::event/data event))
@@ -244,7 +269,17 @@
    :name :gene-validity-sepio-reader
    :backing-store :gv-tdb
    :interceptors [publish-record-to-system-topic
+                  replace-hgnc-with-ncbi-gene
                   store-curation]})
+
+(def import-actionability-curations
+  {:type :processor
+   :subscribe :actionability
+   :name :import-actionability-curations
+   :backing-store :gv-tdb
+   :interceptors [publish-record-to-system-topic
+                  actionability/add-actionability-model
+                  actionability/write-actionability-model-to-db]})
 
 (def graphql-api
   {:name :graphql-api
@@ -322,6 +357,9 @@
              :type :simple-queue-topic}
             :base-data
             {:name :base-data
+             :type :simple-queue-topic}
+            :actionability
+            {:name :actionability
              :type :simple-queue-topic}}
    :storage {:gv-tdb gv-tdb
              :gene-validity-version-store gene-validity-version-store}
@@ -329,7 +367,8 @@
                 :fetch-base-file fetch-base-processor
                 :import-base-file import-base-processor
                 :import-gv-curations import-gv-curations
-                :graphql-api graphql-api}
+                :graphql-api graphql-api
+                :import-actionability-curations import-actionability-curations}
    :http-servers gv-http-server})
 
 (comment
@@ -338,6 +377,11 @@
 
   (p/start gv-test-app)
   (p/stop gv-test-app)
+
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 5)
+         (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %))))
   
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
     (->> (event-store/event-seq r)
@@ -359,28 +403,26 @@
   (p/process (get-in gv-test-app [:processors :fetch-base-file]) b1)
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
-      (->> ((rdf/create-query "select ?x where { ?x a :so/Gene }") tdb)
-           (take 5)
-           (map #(rdf/ld1-> % [:skos/prefLabel]))
-           (into []))))
+      (->> ((rdf/create-query "select ?x where { ?x a :sepio/ActionabilityAssertion }") tdb)
+           count
+           #_(into []))))
 
   (def sepio-events-path "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz")
 
   (event-store/with-event-reader [r sepio-events-path]
     (->>(event-store/event-seq r)
-       (map #(assoc % ::event/format ::rdf/n-triples))
+       (map #(assoc %
+                    ::event/format ::rdf/n-triples
+                    ::event/skip-local-effects true
+                    ::event/skip-publish-effects true))
+       (map #(p/process (get-in gv-test-app [:processors :import-gv-curations]) %))
        first
-       event/deserialize
        ::event/data
-       rdf/pp-model))`
+       rdf/pp-model))
 
   (event-store/with-event-reader [r sepio-events-path]
-    (->>(event-store/event-seq r)
-       (map #(assoc % ::event/format ::rdf/n-triples))
-       (take 1)
-       (run! #(p/publish (get-in gv-test-app
-                                 [:topics :gene-validity-sepio])
-                         %))))
+    (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %)
+          (map #(assoc % ::event/format ::rdf/n-triples) (event-store/event-seq r))))
   
   )
 
