@@ -1,6 +1,7 @@
-(ns genegraph.source.graphql.common.curation
-  (:require [genegraph.database.query :as q :refer [create-query]]
-            [clojure.string :as s]))
+(ns genegraph.gene-validity.graphql.common.curation
+  (:require [genegraph.framework.storage.rdf :as rdf]
+            [clojure.string :as s])
+  (:import [org.apache.jena.graph NodeFactory]))
 
 (def gene-validity-bgp
   '[[validity_proposition :sepio/has-subject gene]
@@ -42,7 +43,7 @@
 
 (def test-resource-for-activity
   (map (fn [[pattern activity]]
-         [(create-query (cons :bgp pattern) {::q/type :ask}) activity])
+         [(rdf/create-query (cons :bgp pattern) {::rdf/type :ask}) activity])
        pattern-curation-activities))
 
 (defn activities [query-params]
@@ -60,12 +61,12 @@
 
 (def test-disease-for-activity
   (map (fn [[pattern activity]]
-         [(create-query (cons :bgp pattern) {::q/type :ask}) activity])
+         [(rdf/create-query (cons :bgp pattern) {::rdf/type :ask}) activity])
        pattern-disease-curation-activities))
 
-(defn disease-activities [query-params]
+(defn disease-activities [model query-params]
   (reduce (fn [acc [test activity]] 
-            (if (test query-params) 
+            (if (test model query-params) 
               (conj acc activity)
               acc))
           #{}
@@ -75,11 +76,11 @@
   (cons :union (map #(cons :bgp %) curation-bgps)))
 
 (def actionability-curations-for-genetic-condition
-  (create-query [:project ['ac_report]
+  (rdf/create-query [:project ['ac_report]
                  (cons :bgp actionability-bgp)]))
 
 (def actionability-assertions-for-genetic-condition
-  (create-query [:project ['actionability_assertion]
+  (rdf/create-query [:project ['actionability_assertion]
                  (cons :bgp actionability-assertion-bgp)]))
 
 (def gene-validity-with-sort-bgp
@@ -93,45 +94,67 @@
         ['gv_contrib :sepio/has-agent 'affiliation]
         ))
 
+(defn text-search-bgp
+  "Produce a BGP fragment for performing a text search based on a resource.
+  Will produce a list of properties matching 'text', which may be either a
+  property or a variable.
+
+  A complete query using this function could be composed like this:
+  (create-query [:project ['x] (cons :bgp (text-search-bgp 'x :cg/resource 'text))])
+
+  where x is a resource to return, and text is a variable expected to be bound to the
+  text to search for"
+  [resource property text]
+  (let [node0 (symbol "text0")
+        node1 (symbol "text1")
+        rdf-first (NodeFactory/createURI "http://www.w3.org/1999/02/22-rdf-syntax-ns#first")
+        rdf-rest (NodeFactory/createURI "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest")]
+    [[resource (NodeFactory/createURI "http://jena.apache.org/text#query") node0]
+     [node0 rdf-first property]
+     [node0 rdf-rest node1]
+     [node1 rdf-first text]
+     [node1 rdf-rest
+      (NodeFactory/createURI "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil")]]))
+
 (def gene-validity-text-search-bgp
-  (cons :union (map #(cons :bgp (concat (q/text-search-bgp % :cg/resource 'text)
+  (cons :union (map #(cons :bgp (concat (text-search-bgp % :cg/resource 'text)
                                         gene-validity-with-sort-bgp))
                     ['gene 'disease 'validity_assertion])))
 
 (def gene-validity-curations-text-search
-  (create-query [:project ['validity_assertion]
+  (rdf/create-query [:project ['validity_assertion]
                  gene-validity-text-search-bgp]))
 
 (def gene-validity-curations
-  (create-query [:project ['validity_assertion]
+  (rdf/create-query [:project ['validity_assertion]
                  (cons :bgp gene-validity-with-sort-bgp)]))
 
 (def gene-validity-curations
-  (create-query [:project ['validity_assertion]
+  (rdf/create-query [:project ['validity_assertion]
                  ;; Adding the reference to the assertion, plus any fields likely
                  ;; to be used as sort values
                  (cons :bgp gene-validity-with-sort-bgp)]))
 
 (def dosage-sensitivity-curations-for-genetic-condition
-  (create-query [:project ['dosage_assertion]
+  (rdf/create-query [:project ['dosage_assertion]
                  (cons :bgp gene-dosage-disease-bgp)]))
 
 (def curated-diseases-for-gene
-  (create-query [:project ['disease]
+  (rdf/create-query [:project ['disease]
                  union-of-all-curations]))
 
-(defn curated-genetic-conditions-for-gene [query-params]
+(defn curated-genetic-conditions-for-gene [model query-params]
   (map #(array-map :gene (:gene query-params) :disease %) 
-       (remove #(= (q/resource :mondo/Disease) %)
-               (curated-diseases-for-gene query-params))))
+       (remove #(= (rdf/resource :mondo/Disease) %)
+               (curated-diseases-for-gene model query-params))))
 
 (def curated-genes-for-disease
-  (create-query [:project ['gene]
+  (rdf/create-query [:project ['gene]
                  union-of-all-curations]))
 
-(defn curated-genetic-conditions-for-disease [query-params]
+(defn curated-genetic-conditions-for-disease [model query-params]
   (map #(array-map :disease (:disease query-params) :gene %)
-       (curated-genes-for-disease query-params)))
+       (curated-genes-for-disease model query-params)))
 
 (def role-map
   {:APPROVER :sepio/ApproverRole
@@ -140,8 +163,8 @@
 (defn- add-role-to-params [params]
   (case (:role params)
     :ANY (dissoc params :role)
-    nil (assoc params :role (q/resource :sepio/ApproverRole))
-    (assoc params :role (q/resource (role-map (:role params))))))
+    nil (assoc params :role (rdf/resource :sepio/ApproverRole))
+    (assoc params :role (rdf/resource (role-map (:role params))))))
 
 (defn- add-text-to-params [params]
   (if (string? (:text params))
@@ -161,22 +184,22 @@
                          (merge value)
                          add-role-to-params
                          add-text-to-params
-                         (assoc ::q/params params))
+                         (assoc ::rdf/params params))
         query (if (:text args)
                 gene-validity-curations-text-search
                 gene-validity-curations)
-        count (future (query (assoc query-params ::q/params {:type :count})))]
+        count (query (assoc query-params ::rdf/params {:type :count}))]
     {:curation_list (query query-params)
-     :count @count}))
+     :count count}))
 
 (def validity-curated-genes
-  (create-query [:project ['gene]
+  (rdf/create-query [:project ['gene]
                  (cons :bgp gene-validity-with-sort-bgp)]))
 
 (def validity-curated-genes-text-search
-  (create-query [:project ['gene]
+  (rdf/create-query [:project ['gene]
                  (cons :bgp
-                       (concat (q/text-search-bgp 'gene :cg/resource 'text)
+                       (concat (text-search-bgp 'gene :cg/resource 'text)
                                gene-validity-with-sort-bgp))]))
 
 (defn validity-curated-genes-for-resolver
@@ -189,23 +212,23 @@
         query-params (-> (if (string? (:text args))
                            {:text (s/lower-case (:text args))}
                            {})
-                         (assoc ::q/params params)
+                         (assoc ::rdf/params params)
                          (merge value))
         query (if (:text args)
                 validity-curated-genes-text-search
                 validity-curated-genes)
-        count (future (query (assoc query-params ::q/params {:type :count})))]
+        count (query (assoc query-params ::rdf/params {:type :count}))]
     {:gene_list (query query-params)
-     :count @count}))
+     :count count}))
 
 (def validity-curated-diseases
-  (create-query [:project ['disease]
+  (rdf/create-query [:project ['disease]
                  (cons :bgp gene-validity-with-sort-bgp)]))
 
 (def validity-curated-diseases-text-search
-  (create-query [:project ['disease]
+  (rdf/create-query [:project ['disease]
                  (cons :bgp
-                       (concat (q/text-search-bgp 'disease :cg/resource 'text)
+                       (concat (text-search-bgp 'disease :cg/resource 'text)
                                gene-validity-with-sort-bgp))]))
 
 (defn validity-curated-diseases-for-resolver
@@ -218,14 +241,14 @@
         query-params (-> (if (string? (:text args))
                            {:text (s/lower-case (:text args))}
                            {})
-                         (assoc ::q/params params)
+                         (assoc ::rdf/params params)
                          (merge value))
         query (if (:text args)
                 validity-curated-diseases-text-search
                 validity-curated-diseases)
-        count (future (query (assoc query-params ::q/params {:type :count})))]
+        count (query (assoc query-params ::rdf/params {:type :count}))]
     {:disease_list (query query-params)
-     :count @count}))
+     :count count}))
 
 (defn genes-for-resolver
   "Method to be called by resolvers desiring a list of genes with limit, sort and offset,
@@ -237,12 +260,12 @@
         query-params (-> (if (string? (:text args))
                            {:text (s/lower-case (:text args))}
                            {})
-                         (assoc ::q/params params)
+                         (assoc ::rdf/params params)
                          (merge value))
         gene-bgp '[[gene :rdf/type :so/Gene]
                    [gene :skos/preferred-label gene_label]]
         base-bgp (if (:text args)
-                   (concat (q/text-search-bgp 'gene :cg/resource 'text) gene-bgp)
+                   (concat (text-search-bgp 'gene :cg/resource 'text) gene-bgp)
                    gene-bgp)
         selected-curation-type-bgp (case (:curation_activity args)
                                      :GENE_VALIDITY gene-validity-bgp
@@ -257,12 +280,12 @@
               (cons :bgp
                     (concat base-bgp
                             selected-curation-type-bgp)))
-        query (create-query [:project 
+        query (rdf/create-query [:project 
                              ['gene]
                              bgp])
-        result-count (future (query (assoc query-params ::q/params {:type :count})))]
+        result-count (query (assoc query-params ::rdf/params {:type :count}))]
     {:gene_list (query query-params)
-     :count @result-count}))
+     :count result-count}))
 
 (defn diseases-for-resolver 
   "Method to be called by resolvers desiring a list of diseases with limit, sort and offset,
@@ -272,8 +295,8 @@
   [args value]
   (let [params (-> args (select-keys [:limit :offset :sort]) (assoc :distinct true))
         query-params (if (:text args)
-                       {:text (-> args :text s/lower-case) ::q/params params}
-                       {::q/params params})
+                       {:text (-> args :text s/lower-case) ::rdf/params params}
+                       {::rdf/params params})
         selected-curation-type-bgp (case (:curation_activity args)
                                      :GENE_VALIDITY gene-validity-bgp
                                      :ACTIONABILITY actionability-bgp
@@ -291,40 +314,40 @@
                 (cons :bgp (conj selected-curation-type-bgp
                                  '[disease :rdfs/label disease_label]))))
         query-bgp (if (:text args) 
-                    [:join (cons :bgp (q/text-search-bgp 'disease :cg/resource 'text)) bgp]
+                    [:join (cons :bgp (text-search-bgp 'disease :cg/resource 'text)) bgp]
                     bgp)
         query (if (some? bgp)
-                (create-query [:project 
+                (rdf/create-query [:project 
                              ['disease]
                                query-bgp])
                 ;; Consider restructuring this around a BGP when variable length
                 ;; predicates are supported in the algebra, is messy as written.
                 (if (:text args)
-                  (create-query 
+                  (rdf/create-query 
                    (str "select ?s WHERE { "
                         "?s :jena/query ( :cg/resource ?text ) . "
                         "?s <http://www.w3.org/2000/01/rdf-schema#subClassOf>* "
                         "<http://purl.obolibrary.org/obo/MONDO_0000001> . "
                         "?s :rdfs/label ?disease_label . "
                         "FILTER (!isBlank(?s)) }"))
-                  (create-query 
+                  (rdf/create-query 
                    (str "select ?s WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#subClassOf>* "
                         "<http://purl.obolibrary.org/obo/MONDO_0000001> . "
                         "?s :rdfs/label ?disease_label . "
                         "FILTER (!isBlank(?s)) }"))))
-        result-count (future (query (assoc query-params ::q/params {:type :count})))]
+        result-count (query (assoc query-params ::rdf/params {:type :count}))]
     {:disease_list (query query-params)
-     :count @result-count}))
+     :count result-count}))
 
 
 (def evaluation-criteria
-  (create-query 
+  (rdf/create-query 
    "select distinct ?criteria where 
 { ?criteria_type <http://www.w3.org/2000/01/rdf-schema#subClassOf>* <http://purl.obolibrary.org/obo/SEPIO_0000037> .
   ?criteria a ?criteria_type . }"))
 
 (def classifications
-  (create-query
+  (rdf/create-query
    "select distinct ?classification where 
 { ?assertion_type <http://www.w3.org/2000/01/rdf-schema#subClassOf>* <http://purl.obolibrary.org/obo/SEPIO_0000001> .
   ?assertion a ?assertion_type .

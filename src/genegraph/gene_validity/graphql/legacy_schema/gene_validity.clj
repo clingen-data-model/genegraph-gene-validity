@@ -1,8 +1,6 @@
-(ns genegraph.source.graphql.gene-validity
-  (:require [genegraph.database.query :as q :refer [ld-> ld1-> create-query resource]]
-            [genegraph.source.graphql.common.enum :as enum]
-            [genegraph.source.graphql.common.curation :as curation]
-            [genegraph.source.graphql.common.cache :refer [defresolver]]
+(ns genegraph.gene-validity.graphql.legacy-schema.gene-validity
+  (:require [genegraph.framework.storage.rdf :as rdf]
+            [genegraph.gene-validity.graphql.common.curation :as curation]
             [clojure.string :as s]
             [cheshire.core :as json]))
 
@@ -13,95 +11,83 @@
 
 (defn find-newest-gci-curation [id]
   (when-let [uuid-part (->> id (re-find #"(\w+_)(\w+-\w+-\w+-\w+-\w+)") last)]
-    (let [proposition (q/resource (str "CGGV:proposition_" uuid-part))]
-      (when (q/is-rdf-type? proposition :sepio/GeneValidityProposition)
-        (ld1-> proposition [[:sepio/has-subject :<]])))))
+    (let [proposition (rdf/resource (str "CGGV:proposition_" uuid-part))]
+      (when (rdf/is-rdf-type? proposition :sepio/GeneValidityProposition)
+        (rdf/ld1-> proposition [[:sepio/has-subject :<]])))))
 
 (defn find-gciex-curation [id]
   (when (re-matches #"\d+" id)
-    (let [gciex-assertion (q/resource (str "CGGCIEX:assertion_" id))]
-      (when (q/is-rdf-type? gciex-assertion :sepio/GeneValidityEvidenceLevelAssertion)
+    (let [gciex-assertion (rdf/resource (str "CGGCIEX:assertion_" id))]
+      (when (rdf/is-rdf-type? gciex-assertion :sepio/GeneValidityEvidenceLevelAssertion)
         gciex-assertion))))
 
-(defresolver gene-validity-assertion-query [args value]
-  (let [requested-assertion (q/resource (:iri args))]
-    (if (q/is-rdf-type? requested-assertion :sepio/GeneValidityEvidenceLevelAssertion)
+;; Find query. Seems unreasonably complex.
+(defn gene-validity-assertion-query [context args value]
+  (let [requested-assertion (rdf/resource (:iri args))]
+    (if (rdf/is-rdf-type? requested-assertion :sepio/GeneValidityEvidenceLevelAssertion)
       requested-assertion
-      (or (q/ld1-> requested-assertion [[:cg/website-legacy-id :<]])
+      (or (rdf/ld1-> requested-assertion [[:cg/website-legacy-id :<]])
           (find-newest-gci-curation (:iri args))
           (find-gciex-curation (:iri args))))))
 
-(defresolver ^:expire-by-value report-date [args value]
-  (ld1-> value [:sepio/qualified-contribution :sepio/activity-date]))
+;; used
+(defn report-date [context args value]
+  (rdf/ld1-> value [:sepio/qualified-contribution :sepio/activity-date]))
 
-
-;; DEPRECATED
-(defresolver gene-validity-list [args value]
-  (let [params (-> args (select-keys [:limit :offset :sort]) (assoc :distinct true))]
-    (curation/gene-validity-curations {::q/params params})))
-
-(defresolver ^:expire-always gene-validity-curations [args value]
+;; find list query
+;; TODO CURATION
+(defn gene-validity-curations [context args value]
   (curation/gene-validity-curations-for-resolver args value))
 
-;; DEPRECATED -- may not be used at all
-(defresolver criteria [args value]
-  nil)
+;; used
+(defn classification [context args value]
+  (rdf/ld1-> value [:sepio/has-object]))
 
-(def evidence-levels
-  {:sepio/DefinitiveEvidence :DEFINITIVE
-   :sepio/LimitedEvidence :LIMITED
-   :sepio/ModerateEvidence :MODERATE
-   :sepio/NoEvidence :NO_KNOWN_DISEASE_RELATIONSHIP
-   :sepio/RefutingEvidence :REFUTED
-   :sepio/DisputingEvidence :DISPUTED
-   :sepio/StrongEvidence :STRONG})
+;; used
+(defn gene [context args value]
+  (rdf/ld1-> value [:sepio/has-subject :sepio/has-subject]))
 
-(defresolver ^:expire-by-value classification [args value]
-  (-> value :sepio/has-object first))
+;; used
+(defn disease [context args value]
+  (rdf/ld1-> value [:sepio/has-subject :sepio/has-object]))
 
-(defresolver ^:expire-by-value gene [args value]
-  (ld1-> value [:sepio/has-subject :sepio/has-subject]))
-
-(defresolver ^:expire-by-value disease [args value]
-  (ld1-> value [:sepio/has-subject :sepio/has-object]))
-
-(defresolver ^:expire-by-value mode-of-inheritance [args value]
-  (ld1-> value [:sepio/has-subject :sepio/has-qualifier]))
-
-;; (defresolver attributed-to [args value]
-  
-;;   (ld1-> value [:sepio/qualified-contribution :sepio/has-agent]))
+;; used
+(defn mode-of-inheritance [context args value]
+  (rdf/ld1-> value [:sepio/has-subject :sepio/has-qualifier]))
 
 (def primary-attribution-query
-  (q/create-query
+  (rdf/create-query
    "select ?agent where {
     ?assertion :sepio/qualified-contribution ?contribution . 
     ?contribution :bfo/realizes :sepio/ApproverRole ;
     :sepio/has-agent ?agent . } 
    limit 1 "))
 
-(defresolver ^:expire-by-value attributed-to [args value]
-  (first (primary-attribution-query {:assertion value})))
+;; used
+(defn attributed-to [context args value]
+  (first (primary-attribution-query (:db context) {:assertion value})))
 
-(defresolver ^:expire-by-value contributions [args value]
-  (:sepio/qualified-contribution value))
+;; used
+(defn contributions [context args value]
+  (rdf/ld-> value [:sepio/qualified-contribution]))
 
-(defresolver ^:expire-by-value specified-by [args value]
+;; used
+(defn specified-by [context args value]
   ;; this returns a resource
-  (ld1-> value [:sepio/is-specified-by]))
+  (rdf/ld1-> value [:sepio/is-specified-by]))
 
-(defresolver ^:expire-by-value has-format [args value]
-  ;; this returns a string
-  (ld1-> value [:sepio/is-specified-by]))
-
+;; used
 (defn legacy-json [_ _ value]
-  (ld1-> value [[:bfo/has-part :<] :bfo/has-part :cnt/chars]))
+  (rdf/ld1-> value [[:bfo/has-part :<] :bfo/has-part :cnt/chars]))
 
+;; used
+;; also ugly AF. this could be a major source of slowness
+;; This is *really* bad
 
 ;; TODO should be able to remove first part after
 ;; releasing full GCI
-(defresolver ^:expire-by-value report-id [_ value]
-  (let [curie (q/curie value)]
+(defn report-id [context args value]
+  (let [curie (rdf/curie value)]
     ;; match vintage style curie with date time stamp at the end
     (if (re-find #"\.\d{3}Z$" curie)
       (-> (legacy-json nil nil value)
@@ -111,21 +97,25 @@
       (if (re-find #"^CGGCIEX:assertion_\d+$" curie)
         nil
         ;; match gci refactor
-        (when-let [proposition-id (-> (ld1-> value [:sepio/has-subject])
+        (when-let [proposition-id (-> (rdf/ld1-> value [:sepio/has-subject])
                                       str
                                       (s/split #"/")
                                       last)]
           (re-find #"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
                    proposition-id))))))
-              
-(defresolver ^:expire-by-value animal-model [args value]
-  (let [res (first (q/select "select ?s where {
-                                  ?s :bfo/has-part ?resource ;
-                                  a :sepio/GeneValidityReport ;
-                                  :cg/is-animal-model-only ?animal }"
-                             {:resource value}))]
+
+(def animal-model-query
+  (rdf/create-query "
+select ?s where {
+ ?s :bfo/has-part ?resource ;
+ a :sepio/GeneValidityReport ;
+ :cg/is-animal-model-only ?animal }"))
+
+;; used
+(defn animal-model [context args value]
+  (let [res (first (animal-model-query (:db context) {:resource value}))]
     (if res
-      (case (ld1-> res [:cg/is-animal-model-only])
+      (case (rdf/ld1-> res [:cg/is-animal-model-only])
         "YES" true
         "NO"  false
         nil)

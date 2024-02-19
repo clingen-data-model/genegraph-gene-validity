@@ -1,27 +1,25 @@
-(ns genegraph.source.graphql.genetic-condition
-  (:require [genegraph.source.graphql.common.curation :as curation]
-            [genegraph.source.graphql.common.cache :refer [defresolver]]))
+(ns genegraph.gene-validity.graphql.legacy-schema.genetic-condition
+  (:require [genegraph.gene-validity.graphql.common.curation :as curation]))
 
-(defresolver gene [args value]
+(defn gene [context args value]
   (:gene value))
 
-(defresolver disease [args value]
+(defn disease [context args value]
   (:disease value))
 
-(defresolver mode-of-inheritance [args value]
+(defn mode-of-inheritance [context args value]
   (:mode-of-inheritance value))
 
-;; TODO need expire-by-field concept to properly handle cache expiration
-;; for these
-
-(defresolver ^{:expire-by-field :gene} actionability-curations [args value]
+;; TODO CURATION
+;; all the curation
+(defn actionability-curations [context args value]
   (curation/actionability-curations-for-genetic-condition value))
 
-(defresolver ^{:expire-by-field :gene} actionability-assertions [args value]
+(defn actionability-assertions [context args value]
   (curation/actionability-assertions-for-genetic-condition value))
 
-(defresolver ^{:expire-by-field :gene} gene-validity-curation [args value]
+(defn gene-validity-curation [context args value]
   (curation/gene-validity-curations value))
 
-(defresolver ^{:expire-by-field :gene} gene-dosage-curation [args value]
+(defn  gene-dosage-curation [context args value]
   (curation/dosage-sensitivity-curations-for-genetic-condition value))

@@ -12,6 +12,7 @@
             [genegraph.gene-validity.gci-model :as gci-model]
             [genegraph.gene-validity.sepio-model :as sepio-model]
             [genegraph.gene-validity.actionability :as actionability]
+            [genegraph.gene-validity.dosage :as dosage] 
             [genegraph.gene-validity.base :as base]
             [genegraph.gene-validity.graphql.schema :as gql-schema]
             [genegraph.gene-validity.versioning :as versioning]
@@ -28,9 +29,7 @@
            [org.apache.jena.query ReadWrite]
            [org.apache.jena.rdf.model Model]
            [org.apache.kafka.clients.producer KafkaProducer]
-           [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors]
-           [com.google.cloud.secretmanager.v1 AccessSecretVersionResponse ProjectName Replication Secret SecretManagerServiceClient SecretPayload SecretVersion SecretName]
-           [com.google.protobuf ByteString])
+           [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors])
   (:gen-class))
 
 (def gcs-handle
@@ -281,6 +280,15 @@
                   actionability/add-actionability-model
                   actionability/write-actionability-model-to-db]})
 
+(def import-dosage-curations
+  {:type :processor
+   :subscribe :dosage
+   :name :import-dosage-curations
+   :backing-store :gv-tdb
+   :interceptors [#_publish-record-to-system-topic
+                  dosage/add-dosage-model
+                  dosage/write-dosage-model-to-db]})
+
 (def graphql-api
   {:name :graphql-api
    :type :processor
@@ -360,6 +368,9 @@
              :type :simple-queue-topic}
             :actionability
             {:name :actionability
+             :type :simple-queue-topic}
+            :dosage
+            {:name :dosage
              :type :simple-queue-topic}}
    :storage {:gv-tdb gv-tdb
              :gene-validity-version-store gene-validity-version-store}
@@ -368,7 +379,8 @@
                 :import-base-file import-base-processor
                 :import-gv-curations import-gv-curations
                 :graphql-api graphql-api
-                :import-actionability-curations import-actionability-curations}
+                :import-actionability-curations import-actionability-curations
+                :import-dosage-curations import-dosage-curations}
    :http-servers gv-http-server})
 
 (comment
@@ -382,6 +394,11 @@
     (->> (event-store/event-seq r)
          (take 5)
          (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %))))
+
+
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-dosage_2024-02-13.edn.gz"]
+    (->> (event-store/event-seq r)
+         (run! #(p/publish (get-in gv-test-app [:topics :dosage]) %))))
   
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
     (->> (event-store/event-seq r)
@@ -403,7 +420,7 @@
   (p/process (get-in gv-test-app [:processors :fetch-base-file]) b1)
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
-      (->> ((rdf/create-query "select ?x where { ?x a :sepio/ActionabilityAssertion }") tdb)
+      (->> ((rdf/create-query "select ?x where { ?x a :sepio/GeneDosageReport }") tdb)
            count
            #_(into []))))
 

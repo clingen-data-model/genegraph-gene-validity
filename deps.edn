@@ -22,8 +22,8 @@
 
  :deps
  {org.clojure/clojure                               {:mvn/version "1.11.1"}
-  io.github.clingen-data-model/genegraph-framework  {:git/tag "0.1-alpha.11"
-                                                     :git/sha "1ec0d5d"}
+  io.github.clingen-data-model/genegraph-framework  {:git/tag "0.1-alpha.14"
+                                                     :git/sha "7151784"}
   com.walmartlabs/lacinia-pedestal                  {:mvn/version "1.2"}
   hato/hato                                         {:mvn/version "0.9.0"}
   org.clojure/data.csv                              {:mvn/version "1.0.1"}

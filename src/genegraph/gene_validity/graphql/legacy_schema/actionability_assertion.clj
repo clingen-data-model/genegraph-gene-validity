@@ -1,9 +1,8 @@
-(ns genegraph.source.graphql.actionability-assertion
-  (:require [genegraph.database.query :as q]
-            [genegraph.source.graphql.common.cache :refer [defresolver]]))
+(ns genegraph.gene-validity.graphql.legacy-schema.actionability-assertion
+  (:require [genegraph.framework.storage.rdf :as rdf]))
 
 (def report-date-query 
-  (q/create-query 
+  (rdf/create-query 
    (str "select ?contribution where "
         " { ?report :bfo/has-part ?assertion . "
         "   ?report :sepio/qualified-contribution ?contribution . "
@@ -12,17 +11,20 @@
         " order by desc(?date) "
         " limit 1 ")))
 
-(defresolver report-date [args value]
-  (some-> (report-date-query {:assertion value}) first :sepio/activity-date first))
+(defn report-date [context args value]
+  (some-> (report-date-query (:db context) {:assertion value})
+          first
+          :sepio/activity-date
+          first))
 
-(defresolver source [args value]
-  (q/ld1-> value [[:bfo/has-part :<] :dc/source]))
+(defn source [context args value]
+  (rdf/ld1-> value [[:bfo/has-part :<] :dc/source]))
 
-(defresolver classification [args value]
-  (q/ld1-> value [:sepio/has-predicate]))
+(defn classification [context args value]
+  (rdf/ld1-> value [:sepio/has-predicate]))
 
-(defresolver report-label [args value]
-  (q/ld1-> value [[:bfo/has-part :<] :rdfs/label]))
+(defn report-label [context args value]
+  (rdf/ld1-> value [[:bfo/has-part :<] :rdfs/label]))
 
-(defresolver attributed-to [args value]
-  (q/ld1-> value [[:bfo/has-part :<] :sepio/qualified-contribution :sepio/has-agent]))
+(defn attributed-to [context args value]
+  (rdf/ld1-> value [[:bfo/has-part :<] :sepio/qualified-contribution :sepio/has-agent]))

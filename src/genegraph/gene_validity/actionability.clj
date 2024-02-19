@@ -171,8 +171,6 @@
         (curation->statements (::event/data event)))))))
 
 (defn add-actionability-model-fn [event]
-  (log/info :fn ::add-actionability-model-fn
-            :iri (get-in event [::event/data :iri]))
   (assoc event ::model (event->model event)))
 
 (def add-actionability-model
@@ -181,8 +179,6 @@
     :enter (fn [e] (add-actionability-model-fn e))}))
 
 (defn write-actionability-model-to-db-fn [event]
-  (log/info :fn ::write-actionability-model-to-db-fn
-            :iri (get-in event [::event/data :iri]))
   (event/store event
                :gv-tdb
                (get-in event [::event/data :iri])

@@ -16,6 +16,7 @@
  "ncbigene" "https://www.ncbi.nlm.nih.gov/gene/"
  "prov" "http://www.w3.org/ns/prov#"
  "void" "http://rdfs.org/ns/void"
+ "omim" "https://omim.org/entry/"
  "hgnc" "https://identifiers.org/hgnc:"})
 
 
@@ -44,6 +45,11 @@
   :pco/Family "http://purl.obolibrary.org/obo/PCO_0000020"
   :ro/IsCausalGermlineMutationIn "http://purl.obolibrary.org/obo/RO_0004013"
   :ro/has-member "http://purl.obolibrary.org/obo/RO_0002351"
+  :sepio/DosageSufficientEvidence "http://purl.obolibrary.org/obo/SEPIO_0002006"
+  :sepio/DosageModerateEvidence "http://purl.obolibrary.org/obo/SEPIO_0002009"
+  :sepio/DosageMinimalEvidence "http://purl.obolibrary.org/obo/SEPIO_0002007"
+  :sepio/DosageNoEvidence "http://purl.obolibrary.org/obo/SEPIO_0002008"
+  :sepio/GeneAssociatedWithAutosomalRecessivePhenotype "http://purl.obolibrary.org/obo/SEPIO_0002502"
   :sepio/Assertion "http://purl.obolibrary.org/obo/SEPIO_0000001"
   :sepio/Proposition "http://purl.obolibrary.org/obo/SEPIO_0000000"
   :sepio/ApproverRole "http://purl.obolibrary.org/obo/SEPIO_0000155"

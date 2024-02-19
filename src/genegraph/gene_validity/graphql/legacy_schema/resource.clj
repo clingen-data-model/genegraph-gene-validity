@@ -1,4 +1,4 @@
-(ns genegraph.gene-validity.graphql.resource
+(ns genegraph.gene-validity.graphql.legacy-schema.resource
   (:require [genegraph.framework.storage.rdf :as rdf]))
 
 (comment
@@ -44,23 +44,11 @@
 (defn label [context args value]
   (rdf/ld1->* value [:skos/prefLabel :rdfs/label :foaf/name]))
 
+(defn alternative-label [context args value]
+  (rdf/ld1-> value [:skos/altLabel]))
+
 (defn website-display-label [context args value]
   (rdf/ld1->* value [:cg/website-display-label
                      :skos/prefLabel
                      :rdfs/label
                      :foaf/name]))
-
-(defn type [context args value]
-  (rdf/ld1-> value [:rdf/type]))
-
-(defn alternative-label [context args value]
-  (rdf/ld1-> value [:skos/altLabel]))
-
-(defn description [context args value]
-  (rdf/ld1-> value [:dc/description]))
-
-(defn direct-superclasses [context args value]
-  (rdf/ld-> value [:rdfs/subClassOf]))
-
-(defn direct-subclasses [context args value]
-  (rdf/ld-> value [[:rdfs/subClassOf :<]]))
