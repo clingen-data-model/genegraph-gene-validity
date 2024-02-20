@@ -12,6 +12,7 @@
             [genegraph.gene-validity.gci-model :as gci-model]
             [genegraph.gene-validity.sepio-model :as sepio-model]
             [genegraph.gene-validity.actionability :as actionability]
+            [genegraph.gene-validity.gene-validity-legacy-report :as legacy-report]
             [genegraph.gene-validity.dosage :as dosage] 
             [genegraph.gene-validity.base :as base]
             [genegraph.gene-validity.graphql.schema :as gql-schema]
@@ -228,12 +229,13 @@
    :name :gene-validity-transform
    :subscribe :gene-validity-gci
    :backing-store :gene-validity-version-store
-   :interceptors [publish-record-to-system-topic
-                  gci-model/add-gci-model
+   :interceptors [gci-model/add-gci-model
                   sepio-model/add-model
                   add-iri
                   add-publish-actions
                   versioning/add-version]})
+
+
 
 ;;;; Base
 
@@ -241,8 +243,7 @@
   {:name :fetch-base-file
    :type :processor
    :subscribe :fetch-base-events
-   :interceptors [publish-record-to-system-topic
-                  base/fetch-file
+   :interceptors [base/fetch-file
                   base/publish-base-file]
    ::event/metadata {::base/handle (:base-fs-handle env)}})
 
@@ -267,8 +268,7 @@
    :subscribe :gene-validity-sepio
    :name :gene-validity-sepio-reader
    :backing-store :gv-tdb
-   :interceptors [publish-record-to-system-topic
-                  replace-hgnc-with-ncbi-gene
+   :interceptors [replace-hgnc-with-ncbi-gene
                   store-curation]})
 
 (def import-actionability-curations
@@ -276,8 +276,7 @@
    :subscribe :actionability
    :name :import-actionability-curations
    :backing-store :gv-tdb
-   :interceptors [publish-record-to-system-topic
-                  actionability/add-actionability-model
+   :interceptors [actionability/add-actionability-model
                   actionability/write-actionability-model-to-db]})
 
 (def import-dosage-curations
@@ -285,9 +284,16 @@
    :subscribe :dosage
    :name :import-dosage-curations
    :backing-store :gv-tdb
-   :interceptors [#_publish-record-to-system-topic
-                  dosage/add-dosage-model
+   :interceptors [dosage/add-dosage-model
                   dosage/write-dosage-model-to-db]})
+
+(def gene-validity-legacy-report-processor
+  {:type :processor
+   :subscribe :gene-validity-legacy
+   :name :gene-validity-legacy-report-processor
+   :backing-store :gv-tdb
+   :interceptors [legacy-report/add-gci-legacy-model
+                  legacy-report/write-gci-legacy-model-to-db]})
 
 (def graphql-api
   {:name :graphql-api
@@ -371,6 +377,9 @@
              :type :simple-queue-topic}
             :dosage
             {:name :dosage
+             :type :simple-queue-topic}
+            :gene-validity-legacy
+            {:name :gene-validity-legacy
              :type :simple-queue-topic}}
    :storage {:gv-tdb gv-tdb
              :gene-validity-version-store gene-validity-version-store}
@@ -380,7 +389,8 @@
                 :import-gv-curations import-gv-curations
                 :graphql-api graphql-api
                 :import-actionability-curations import-actionability-curations
-                :import-dosage-curations import-dosage-curations}
+                :import-dosage-curations import-dosage-curations
+                :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
    :http-servers gv-http-server})
 
 (comment
@@ -392,7 +402,6 @@
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
     (->> (event-store/event-seq r)
-         (take 5)
          (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %))))
 
 
@@ -402,8 +411,19 @@
   
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
     (->> (event-store/event-seq r)
-         (take 1)
          (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-gci]) %))))
+
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-validity-legacy_2024-02-20.edn.gz"]
+    (->> (event-store/event-seq r)
+         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy]) %))))
+
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-validity-legacy_2024-02-20.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (map #(p/process (get-in gv-test-app [:processors :import-gene-validity-legacy-report])
+                   (assoc %
+                          ::event/skip-local-effects true
+                          ::event/skip-publish-effects true)))))
 
   (def b1
     {::event/data
@@ -413,7 +433,7 @@
      ::event/skip-publish-effects true})
 
   (->> (-> "base.edn" io/resource slurp edn/read-string)
-       (filter #(= ::base/hgnc (:format %)))
+       #_(filter #(= ::base/hgnc (:format %)))
        (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
                          {::event/data %})))
 

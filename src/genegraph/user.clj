@@ -1009,6 +1009,205 @@
    :user/is-admin 'user/is-admin
    :user/member-of 'user/member-of})
 
+(def resolver-map-identity
+  {:clinvar/clinical-assertion-single identity
+   :clinvar/clinical-assertion-subject identity
+   :clinvar/clinical-assertion-predicate identity
+   :clinvar/clinical-assertion-object identity
+   :clinvar/clinical-assertion-version identity
+   :clinvar/clinical-assertion-list identity
+   :clinvar/clinical-assertion-contribution identity
+   :clinvar/clinical-assertion-review-status identity
+   :clinvar/clinical-assertion-date-updated identity
+   :clinvar/clinical-assertion-release-date identity
+   :clinvar/clinical-assertion-version-of identity
+   :clinvar/clinical-assertion-allele-origin identity
+   :clinvar/clinical-assertion-collection-method identity
+   :clinvar/clinical-assertion-classification-context identity
+   :clinvar/aggregate-assertion-list identity
+   :clinvar/aggregate-assertion-version-of identity
+   :clinvar/aggregate-assertion-release-date identity
+   :clinvar/aggregate-assertion-review-status identity
+   :clinvar/aggregate-assertion-subject identity
+   :clinvar/aggregate-assertion-predicate identity
+   :clinvar/aggregate-assertion-object identity
+   :clinvar/aggregate-assertion-version identity
+   :clinvar/aggregate-assertion-members identity
+   :contribution/contribution-query identity
+   :contribution/agent identity
+   :contribution/agent-role identity
+   :contribution/activity-date identity
+   :variant/variant-single identity
+   :variant/name identity
+   :variant/genes identity
+   :variant/id identity
+   :clinvar/gene-list identity
+   :clinvar/gene-preferred-label identity
+   :clinvar/gene-symbol identity
+
+   :actionability/actionability-query identity
+   :actionability/classification-description identity
+   :actionability/conditions identity
+   :actionability/report-date identity
+   :actionability/report-id identity
+   :actionability/source identity
+   :actionability/wg-label identity
+   :actionability/tot-actionability-reports identity
+   :actionability/tot-actionability-updated-reports identity
+   :actionability/tot-gene-disease-pairs identity
+   :actionability/tot-adult-gene-disease-pairs identity
+   :actionability/tot-pediatric-gene-disease-pairs identity
+   :actionability/tot-outcome-intervention-pairs identity
+   :actionability/tot-adult-outcome-intervention-pairs identity
+   :actionability/tot-pediatric-outcome-intervention-pairs identity
+   :actionability/tot-adult-failed-early-rule-out identity
+   :actionability/tot-pediatric-failed-early-rule-out identity
+   :actionability/tot-adult-score-counts identity
+   :actionability/tot-pediatric-score-counts identity
+   :actionability/statistics-query identity
+   :ac-assertion/report-date identity
+   :ac-assertion/source identity
+   :ac-assertion/classification identity
+   :ac-assertion/attributed-to identity
+   :ac-assertion/report-label identity
+   :affiliation/affiliation-query identity
+   :affiliation/affiliations identity
+   :affiliation/curated-diseases identity
+   :affiliation/curated-genes identity
+   :affiliation/gene-validity-assertions identity
+   :assertion/subject identity
+   :assertion/predicate identity
+   :assertion/object identity
+   :assertion/evidence-lines identity
+   :assertion/subject-of identity
+   :classification/classifications identity
+   :condition/condition-query identity
+   :condition/curation-activities identity
+   :condition/description identity
+   :condition/direct-subclasses identity
+   :condition/direct-superclasses identity
+   :condition/disease-list identity
+   :condition/diseases identity
+   :condition/genetic-conditions identity
+   :condition/last-curated-date identity
+   :condition/subclasses identity
+   :condition/superclasses identity
+   :condition/synonyms identity
+   :condition/propositions identity
+   :gv-contribution/agent identity
+   :gv-contribution/realizes identity
+   :gv-contribution/date identity
+   :coordinate/assembly identity
+   :coordinate/build identity
+   :coordinate/chromosome identity
+   :coordinate/end-pos identity
+   :coordinate/start-pos identity
+   :coordinate/strand identity
+   :criteria/criteria identity
+   :dosage-proposition/assertion-type identity
+   :dosage-proposition/classification-description identity
+   :dosage-proposition/comments identity
+   :dosage-proposition/disease identity
+   :dosage-proposition/dosage-classification identity
+   :dosage-proposition/evidence identity
+   :dosage-proposition/gene identity
+   :dosage-proposition/phenotypes identity
+   :dosage-proposition/report-date identity
+   :dosage-proposition/score identity
+   :dosage-proposition/wg-label identity
+   :drug/aliases identity
+   :drug/drug-query identity
+   :drug/drugs identity
+   :evidence/description identity
+   :evidence/source identity
+   :evidence-line/evidence-items identity
+   :evidence-line/score identity
+   :evidence-item/evidence-lines identity
+   :gene/chromosome-band identity
+   :gene/conditions identity
+   :gene/curation-activities identity
+   :gene/dosage-curation identity
+   :gene/gene-validity-assertions identity
+   :gene/gene-list identity
+   :gene/gene-query identity
+   :gene/genes identity
+   :gene/hgnc-id identity
+   :gene/last-curated-date identity
+   :gene-dosage/dosage-list-query identity
+   :gene-dosage/gene-count identity
+   :gene-dosage/gene-dosage-query identity
+   :gene-dosage/genomic-feature identity
+   :gene-dosage/haplo identity
+   :gene-dosage/haplo-index identity
+   :gene-dosage/label identity
+   :gene-dosage/location-relationship identity
+   :gene-dosage/morbid identity
+   :gene-dosage/morbid-phenotypes identity
+   :gene-dosage/omim identity
+   :gene-dosage/pli-score identity
+   :gene-dosage/region-count identity
+   :gene-dosage/report-date identity
+   :gene-dosage/total-count identity
+   :gene-dosage/totals-query identity
+   :gene-dosage/triplo identity
+   :gene-dosage/wg-label identity
+   :gene-feature/alias-symbols identity
+   :gene-feature/chromosomal-band identity
+   :gene-feature/coordinates identity
+   :gene-feature/function identity
+   :gene-feature/gene-type identity
+   :gene-feature/hgnc-id identity
+   :gene-feature/locus-type identity
+   :gene-feature/previous-symbols identity
+   :gene-validity/attributed-to identity
+   :gene-validity/classification identity
+   :gene-validity/contributions identity
+   :gene-validity/disease identity
+   :gene-validity/gene identity
+   :gene-validity/gene-validity-assertion-query identity
+   :gene-validity/gene-validity-curations identity
+   :gene-validity/gene-validity-list identity
+   :gene-validity/legacy-json identity
+   :gene-validity/mode-of-inheritance identity
+   :gene-validity/report-date identity
+   :gene-validity/specified-by identity
+   :gene-validity/has-format identity
+   :gene-validity/report-id identity
+   :gene-validity/animal-model identity
+   :genetic-condition/actionability-curations identity
+   :genetic-condition/actionability-assertions identity
+   :genetic-condition/disease identity
+   :genetic-condition/gene identity
+   :genetic-condition/gene-dosage-curation identity
+   :genetic-condition/gene-validity-curation identity
+   :genetic-condition/mode-of-inheritance identity
+   :group/groups identity
+   :mode-of-inheritance/modes-of-inheritance identity
+   :region-feature/chromosomal-band identity
+   :region-feature/coordinates identity
+   :resource/alternative-label identity
+   :resource/curie identity
+   :resource/iri identity
+   :resource/label identity
+   :resource/website-display-label identity
+   :resource/type identity
+   :server-status/migration-version identity
+   :server-status/server-version-query identity
+   :suggest/curations identity
+   :suggest/curie identity
+   :suggest/alternative-curie identity
+   :suggest/highlighted-text identity
+   :suggest/iri identity
+   :suggest/suggest identity
+   :suggest/suggest-type identity
+   :suggest/text identity
+   :suggest/weight identity
+   :user/user-query identity
+   :user/current-user identity
+   :user/email identity
+   :user/is-admin identity
+   :user/member-of identity})
+
 (defn read-resource-edn [resource]
   (-> resource io/resource slurp edn/read-string))
 
@@ -1048,8 +1247,31 @@
         io/resource
         slurp
         edn/read-string
-        (util/attach-resolvers resolver-map)
+        (util/attach-resolvers resolver-map-identity)
         schema/compile))
+
+  (def queries
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
+      (->> (event-store/event-seq r)
+           (map (fn [x]
+                  (try
+                    (-> x
+                        ::event/value
+                        (subs 59)
+                        edn/read-string
+                        :servlet-request-body
+                        (json/read-str :key-fn keyword)
+                        :query)
+                    (catch Exception e nil))))
+           (remove nil?)
+           (mapcat #(try
+                      (->> (:selections (parser/parse-query schema %))
+                           (map :qualified-name))
+                      (catch Exception e [])))
+           set)))
+
+  (pprint queries)
+
   (def used-fields
     (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
       (->> (event-store/event-seq r)
@@ -1064,18 +1286,17 @@
                         :query)
                     (catch Exception e nil))))
            (remove nil?)
-           #_(take 50000)
+           (take 1)
            (mapcat (fn [s]
                      (try
-                       (->> (parser/parse-query schema s)
-                            :selections
-                            (mapcat reduce-names))
+                       (->> (parser/parse-query schema s))
                        (catch Exception e []))))
            (into #{})
            
-           #_tap>
+           tap>
            #_(run! println)
            )))
+  
   (tap> (sort used-fields))
 
   (update-vals (group-by #(keyword (namespace %)) used-fields)
@@ -1101,13 +1322,39 @@
               used-fields)))
 
   (def all-resolvers (set (keys resolver-map)))
-  
+
+  (def unused-resolvers (s/difference all-resolvers used-resolvers))
+
+  (take 5 unused-resolvers)
+
+  (def used-resolvers
+    (set (map #(get-in schema-for-merge
+                       [:objects
+                        (keyword (namespace %))
+                        :fields
+                        (keyword (name %))
+                        :resolve])
+              used-fields)))
+
+  (type (first {:a :a}))
+
+  (spit
+   "/users/tristan/code/genegraph-gene-validity/resources/new-graphql-schema-for-merge.edn"
+   (with-out-str
+     (pprint 
+      (walk/postwalk
+       (fn [x]
+         (if (map? x)
+           (into {} (remove #(unused-resolvers (:resolve (val %))) x))
+           x))
+       schema-for-merge))))
+
   (pprint (sort used-resolvers))
   
-  (pprint (sort (s/difference all-resolvers used-resolvers)))
+  (count (sort (s/difference all-resolvers used-resolvers)))
 
   (pprint (apply sorted-map (flatten (seq (select-keys resolver-map used-resolvers)))))
-  
+
   (spit "/users/tristan/data/genegraph-neo/used-fields.edn" (pr-str used-fields))
   (def used-fields (edn/read-string (slurp "/users/tristan/data/genegraph-neo/used-fields.edn")))
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
@@ -1115,4 +1362,15 @@
          first
          ))
   
+  )
+
+
+(comment
+  (kafka/topic->event-file
+   {:name :genegraph-logs
+    :type :kafka-reader-topic
+    :kafka-cluster dx-ccloud
+    :serialization :json
+    :kafka-topic "gene_validity"}
+   "/users/tristan/data/genegraph-neo/gene-validity-legacy_2024-02-20.edn.gz")
   )

@@ -172,62 +172,6 @@
                       :resolve :coordinate/end-pos
                       :description "The coordinate end position."}}}
   
-  ;; TODO may not be used? investigate.
-  ;; :GeneFeature
-  ;; {:description "A gene feature"
-  ;;  :implements [:Resource :GenomicFeature]
-  ;;  :fields {:iri {:type String
-  ;;                 :resolve :resource/iri
-  ;;                 :description "IRI representing the gene. Uses NCBI gene identifiers"}
-  ;;           :curie {:type String
-  ;;                   :resolve :resource/curie}
-  ;;           :label {:type String
-  ;;                   :resolve :resource/label
-  ;;                   :description "Gene symbol"}
-  ;;           :hgnc_id {:type String
-  ;;                     :resolve :gene-feature/hgnc-id
-  ;;                     :description "HGNC ID of gene"}
-  ;;           :gene_type {:type String
-  ;;                       :resolve :gene-feature/gene-type
-  ;;                       :description "The gene type"}
-  ;;           :locus_type {:type String
-  ;;                        :resolve :gene-feature/locus-type
-  ;;                        :description "The gene locus type"}
-  ;;           :previous_symbols {:type String
-  ;;                              :resolve :gene-feature/previous-symbols
-  ;;                              :description "The list of previous gene symbols"}
-  ;;           :alias_symbols {:type String
-  ;;                           :resolve :gene-feature/alias-symbols
-  ;;                           :description "The list of gene aliases"}
-  ;;           :chromosomal_band {:type String
-  ;;                              :resolve :gene-feature/chromosomal-band
-  ;;                              :description "The chromosomal location"}
-  ;;           :function {:type String
-  ;;                      :resolve :gene-feature/function
-  ;;                      :description "A description of the genes function"}
-  ;;           :coordinates {:type (list :Coordinate)
-  ;;                         :resolve :gene-feature/coordinates
-  ;;                         :description "Coordinates of the feature"}}}
-
-  ;; TODO may not be used? investigate.
-  ;; :RegionFeature
-  ;; {:description "A region feature"
-  ;;  :implements [:Resource :GenomicFeature]
-  ;;  :fields {:iri {:type String
-  ;;                 :resolve :resource/iri
-  ;;                 :description "IRI representing the region"}
-  ;;           :curie {:type String
-  ;;                   :resolve :resource/curie}
-  ;;           :label {:type String
-  ;;                   :resolve :resource/label
-  ;;                   :description "Region symbol"}
-  ;;           :chromosomal_band {:type String
-  ;;                              :resolve :region-feature/chromosomal-band
-  ;;                              :description "The chromosomal location"}
-  ;;           :coordinates {:type (list :Coordinate)
-  ;;                         :resolve :region-feature/coordinates
-  ;;                         :description "Coordinates of the feature"}}}
-
   :ModeOfInheritance
   {:description "Mode of inheritance for a genetic condition."
 ;;    :implements [:Resource]
@@ -1005,9 +949,6 @@
   :user_query {:type :Agent
                :args {:email {:type String}}
                :resolve :user/user-query}
-  ;; TODO should be able to get rid of this ...
-  ;; :groups_query {:type (list :Group)
-  ;;                :resolve :group/groups}
   :current_user {:type :Agent
                  :resolve :user/current-user}
   :totals {:type :Totals
@@ -1024,21 +965,5 @@
                               :default-value (list :ALL)
                               :description "List of Curation Activities to filter suggestions with."}}
             :resolve :suggest/suggest}
-  ;; TODO Just say no to drugs
-  ;; :drug {:type (non-null :Drug)
-  ;;        :args {:iri {:type String}}
-  ;;        :resolve :drug/drug-query}
-  ;; :drugs {:type :Drugs
-  ;;         :args {:limit {:type Int
-  ;;                        :default-value 10
-  ;;                        :description "Number of records to return"}
-  ;;                :offset {:type Int
-  ;;                         :default-value 0
-  ;;                         :description "Index to begin returning records from"}
-  ;;                :text {:type String
-  ;;                       :description "Filter list for drugs including text in name and synonyms."}
-  ;;                :sort {:type :Sort
-  ;;                       :description "Order in which to sort drugs"}}
-  ;;         :resolve :drug/drugs}
   :statistics {:type :Statistics
                :resolve :actionability/statistics-query}}}

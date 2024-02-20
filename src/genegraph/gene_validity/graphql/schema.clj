@@ -16,7 +16,7 @@
             [genegraph.gene-validity.graphql.schema.case-cohort :as model-case-cohort]
             [genegraph.gene-validity.graphql.schema.control-cohort :as model-control-cohort]
             [genegraph.gene-validity.graphql.schema.variation-descriptor :as variation-descriptor]
-            #_[genegraph.gene-validity.graphql.legacy-schema :as legacy-schema]
+            [genegraph.gene-validity.graphql.legacy-schema :as legacy-schema]
             [genegraph.gene-validity.graphql.common.schema-builder :as schema-builder]
             [com.walmartlabs.lacinia :as lacinia]
             [genegraph.framework.storage.rdf :refer [tx]]
@@ -73,11 +73,23 @@
   ([options]
    (schema-builder/schema model options)))
 
-#_(defn merged-schema []
-  (-> (legacy-schema/schema-for-merge)
-      (medley/deep-merge (schema-builder/schema-description model))
-      lacinia-schema/compile))
+;; https://gist.github.com/danielpcox/c70a8aa2c36766200a95
+(defn deep-merge [v & vs]
+  (letfn [(rec-merge [v1 v2]
+            (if (and (map? v1) (map? v2))
+              (merge-with deep-merge v1 v2)
+              v2))]
+    (when (some identity vs)
+      (reduce #(rec-merge %1 %2) v vs))))
+
+(defn merged-schema []
+    (-> (legacy-schema/schema-for-merge)
+        (deep-merge (schema-builder/schema-description model))
+        lacinia-schema/compile))
 
 (defn schema-description []
   (schema-builder/schema-description model))
 
+(comment
+  (merged-schema)
+  )

@@ -1,4 +1,4 @@
-(ns genegraph.source.graphql.core
+(ns genegraph.gene-validity.graphql.legacy-schema
   (:require [genegraph.gene-validity.graphql.legacy-schema.gene :as gene]
             [genegraph.gene-validity.graphql.legacy-schema.resource :as resource]
             [genegraph.gene-validity.graphql.legacy-schema.actionability :as actionability]
@@ -95,20 +95,24 @@
    :resource/curie resource/curie,
    :resource/iri resource/iri,
    :resource/label resource/label,
-   :resource/website-display-label resource/website-display-label})
-
-(defn schema []
-  (-> (io/resource "graphql-schema.edn")
-      slurp
-      edn/read-string
-      (util/attach-resolvers resolvers)
-      schema/compile))
+   :resource/website-display-label resource/website-display-label
+   ;; queries
+   :gene/gene-query gene/gene-query
+   :gene/genes gene/genes
+   :condition/condition-query condition/condition-query
+   :condition/diseases condition/diseases
+   :affiliation/affiliations affiliation/affiliations
+   :affiliation/affiliation-query affiliation/affiliation-query
+   :gene-validity/gene-validity-curations gene-validity/gene-validity-curations
+   :gene-validity/gene-validity-assertion-query gene-validity/gene-validity-assertion-query
+   :actionability/statistics-query actionability/statistics-query
+   })
 
 (defn schema-for-merge
   "Return the schema map for later compilation based on the schema to merge
   with the new, model based schema."
   []
-  (-> (io/resource "graphql-schema-for-merge.edn")
+  (-> (io/resource "new-graphql-schema-for-merge.edn")
       slurp
       edn/read-string
       (util/attach-resolvers resolvers)))
