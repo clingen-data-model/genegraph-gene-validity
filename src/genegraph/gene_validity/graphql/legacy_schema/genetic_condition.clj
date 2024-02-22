@@ -13,13 +13,13 @@
 ;; TODO CURATION
 ;; all the curation
 (defn actionability-curations [context args value]
-  (curation/actionability-curations-for-genetic-condition value))
+  (curation/actionability-curations-for-genetic-condition (:db context) value))
 
 (defn actionability-assertions [context args value]
-  (curation/actionability-assertions-for-genetic-condition value))
+  (curation/actionability-assertions-for-genetic-condition (:db context) value))
 
 (defn gene-validity-curation [context args value]
-  (curation/gene-validity-curations value))
+  (curation/gene-validity-curations (:db context) value))
 
 (defn  gene-dosage-curation [context args value]
-  (curation/dosage-sensitivity-curations-for-genetic-condition value))
+  (curation/dosage-sensitivity-curations-for-genetic-condition (:db context) value))

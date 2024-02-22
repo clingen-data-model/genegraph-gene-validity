@@ -23,7 +23,7 @@
 
 ;; Find query. Seems unreasonably complex.
 (defn gene-validity-assertion-query [context args value]
-  (let [requested-assertion (rdf/resource (:iri args))]
+  (let [requested-assertion (rdf/resource (:iri args) (:db context))]
     (if (rdf/is-rdf-type? requested-assertion :sepio/GeneValidityEvidenceLevelAssertion)
       requested-assertion
       (or (rdf/ld1-> requested-assertion [[:cg/website-legacy-id :<]])

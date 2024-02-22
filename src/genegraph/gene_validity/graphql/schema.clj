@@ -39,7 +39,8 @@
     [:pco/Family :Family]]
    :default-type-mapping :GenericResource})
 
-(def model
+;; changing to function to benefit from dynamic type bindings
+(defn model []
   [rdf-to-graphql-type-mappings
    model-resource/resource-interface
    model-resource/generic-resource
@@ -69,9 +70,9 @@
 
 (defn schema
   ([]
-   (schema-builder/schema model))
+   (schema-builder/schema (model)))
   ([options]
-   (schema-builder/schema model options)))
+   (schema-builder/schema (model) options)))
 
 ;; https://gist.github.com/danielpcox/c70a8aa2c36766200a95
 (defn deep-merge [v & vs]
@@ -82,10 +83,13 @@
     (when (some identity vs)
       (reduce #(rec-merge %1 %2) v vs))))
 
-(defn merged-schema []
-    (-> (legacy-schema/schema-for-merge)
-        (deep-merge (schema-builder/schema-description model))
-        lacinia-schema/compile))
+(defn merged-schema
+  ([] (-> (legacy-schema/schema-for-merge)
+          (deep-merge (schema-builder/schema-description (model)))
+          lacinia-schema/compile))
+  ([options] (-> (legacy-schema/schema-for-merge)
+                 (deep-merge (schema-builder/schema-description (model)))
+                 (lacinia-schema/compile options))))
 
 (defn schema-description []
   (schema-builder/schema-description model))

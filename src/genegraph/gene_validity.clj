@@ -160,8 +160,14 @@
 (defn init-graphql-processor [p]
   (assoc-in p
             [::event/metadata ::schema]
-            (gql-schema/schema
-             {:executor direct-executor})))
+            (fn []
+              (gql-schema/merged-schema
+               {:executor direct-executor}))))
+
+(defn fn->schema [fn-or-schema]
+  (if (fn? fn-or-schema)
+    (fn-or-schema)
+    fn-or-schema))
 
 ;; Adapted from version in lacinia-pedestal
 ;; need to get compiled schema from context, not
@@ -173,7 +179,7 @@
     :enter (fn [context]
              (internal/on-enter-query-parser
               context
-              (::schema context)
+              (fn->schema (::schema context))
               (::query-cache context)
               (get-in context [:request ::timing-start])))
     :leave internal/on-leave-query-parser

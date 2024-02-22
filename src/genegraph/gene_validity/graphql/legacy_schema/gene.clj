@@ -18,7 +18,7 @@
 ;; used
 ;; TODO CURATION -- examine in context of queries in curation
 (defn curation-activities [context args value]
-  (curation/activities {:gene value}))
+  (curation/activities (:db context) {:gene value}))
 
 (def most-recent-curation-for-gene 
   (rdf/create-query "select ?contribution where {
@@ -55,7 +55,7 @@
 ;; used
 ;; TODO CURATION -- examine in context of queries in curation
 (defn conditions [context args value]
-  (curation/curated-genetic-conditions-for-gene  {:gene value}))
+  (curation/curated-genetic-conditions-for-gene (:db context) {:gene value}))
 
 ;; TODO CURATION -- examine in context of queries in curation
 (def dosage-query
@@ -65,7 +65,7 @@
 ;; used
 ;; TODO CURATION -- examine in context of queries in curation
 (defn dosage-curation [context args value]
-  (first (dosage-query {::rdf/params {:limit 1} :gene value})))
+  (first (dosage-query (:db context) {::rdf/params {:limit 1} :gene value})))
 
 ;; used
 (defn chromosome-band [context args value]

@@ -28,7 +28,8 @@
             [com.walmartlabs.lacinia :as lacinia]
             [com.walmartlabs.lacinia.schema :as schema]
             [com.walmartlabs.lacinia.util :as util]
-            [com.walmartlabs.lacinia.parser :as parser])
+            [com.walmartlabs.lacinia.parser :as parser]
+            [hato.client :as hc])
   (:import [java.io File PushbackReader FileOutputStream BufferedWriter FileInputStream BufferedReader]
            [java.nio ByteBuffer]
            [java.time Instant OffsetDateTime]
@@ -1373,4 +1374,56 @@
     :serialization :json
     :kafka-topic "gene_validity"}
    "/users/tristan/data/genegraph-neo/gene-validity-legacy_2024-02-20.edn.gz")
+  )
+
+
+(comment
+  (def c (hc/build-http-client {:connect-timeout 100
+                                :redirect-policy :always
+                                :timeout 1000}))
+  (hc/post "https://genegraph.prod.clingen.app/api"
+           {:http-client c
+            :content-type :json
+            :body (json/write-str {:query "
+query($gene:String) {
+  genes(text: $gene) {
+    gene_list {
+      label
+      curie
+    }
+  }
+}"
+                                   :variables {:gene "ZEB2"}})})
+
+  (defn genegraph-request [query]
+      (hc/post "https://genegraph.prod.clingen.app/api"
+           {:http-client c
+            :content-type :json
+            :body query}))
+
+  (defn local-request [query]
+      (hc/post "http://localhost:8888/api"
+           {:http-client c
+            :content-type :json
+            :body query}))
+  
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
+    (->> (event-store/event-seq r)
+         #_(drop 11)
+         (take 1)
+         (map (fn [x]
+                (try
+                  (-> x
+                      ::event/value
+                      (subs 59)
+                      edn/read-string
+                      :servlet-request-body
+                      ;; (json/read-str :key-fn keyword)
+                      ;; :query
+                      ;; println
+                      local-request
+                    )
+                  (catch Exception e {:exception e}))))
+         (into [])))
+
   )

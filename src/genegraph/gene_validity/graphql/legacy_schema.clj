@@ -17,7 +17,8 @@
             [clojure.java.io :as io]
             [genegraph.gene-validity.graphql.common.curation :as curation]))
 
-(def resolvers
+;; Declare as a function to benefit from dynamic binding
+(defn resolvers []
   {:ac-assertion/attributed-to ac-assertion/attributed-to,
    :ac-assertion/classification ac-assertion/classification,
    :ac-assertion/report-date ac-assertion/report-date,
@@ -115,7 +116,7 @@
   (-> (io/resource "new-graphql-schema-for-merge.edn")
       slurp
       edn/read-string
-      (util/attach-resolvers resolvers)))
+      (util/attach-resolvers (resolvers))))
 
 (comment
   (schema-for-merge)

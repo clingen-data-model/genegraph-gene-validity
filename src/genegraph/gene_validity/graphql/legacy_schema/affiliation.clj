@@ -19,7 +19,7 @@
      :count result-count}))
 
 (defn gene-validity-assertions [context args value]
-  (curation/gene-validity-curations-for-resolver args {:affiliation value}))
+  (curation/gene-validity-curations-for-resolver context args {:affiliation value}))
 
 (defn affiliation-query [context args value]
   (rdf/resource (:iri args) (:db context)))

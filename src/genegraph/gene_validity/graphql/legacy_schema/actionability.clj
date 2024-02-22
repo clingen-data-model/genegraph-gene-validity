@@ -4,7 +4,7 @@
             [io.pedestal.log :as log]))
 
 (defn actionability-query [context args value]
-  (rdf/resource (:iri args)))
+  (rdf/resource (:iri args) (:db context)))
 
 (def report-date-query 
   (rdf/create-query 

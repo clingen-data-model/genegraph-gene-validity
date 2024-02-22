@@ -41,14 +41,15 @@
    [actionability-bgp :ACTIONABILITY]
    [gene-dosage-bgp :GENE_DOSAGE]])
 
+;; This is pretty inefficient...
 (def test-resource-for-activity
   (map (fn [[pattern activity]]
          [(rdf/create-query (cons :bgp pattern) {::rdf/type :ask}) activity])
        pattern-curation-activities))
 
-(defn activities [query-params]
+(defn activities [model query-params]
   (reduce (fn [acc [test activity]] 
-            (if (test query-params) 
+            (if (test model query-params) 
               (conj acc activity)
               acc))
           #{}
@@ -176,8 +177,9 @@
   with limit, sort and offset, including a total count field. Value should be a map and
   will be merged into the query parameters, limiting the result to curations that match
   the given argument"
-  [args value]
-  (let [params (-> args
+  [context args value]
+  (let [model (:db context)
+        params (-> args
                    (select-keys [:limit :offset :sort])
                    (assoc :distinct true))
         query-params (-> (select-keys args [:role])
@@ -188,8 +190,8 @@
         query (if (:text args)
                 gene-validity-curations-text-search
                 gene-validity-curations)
-        count (query (assoc query-params ::rdf/params {:type :count}))]
-    {:curation_list (query query-params)
+        count (query model (assoc query-params ::rdf/params {:type :count}))]
+    {:curation_list (query model query-params)
      :count count}))
 
 (def validity-curated-genes
@@ -255,8 +257,9 @@
   including a total count field. Value should be a map and will be merged into the query
   parameters, limiting the result to curations that match
   the given argument"
-  [args value]
-  (let [params (-> args (select-keys [:limit :offset :sort]) (assoc :distinct true))
+  [context args value]
+  (let [model (:db context)
+        params (-> args (select-keys [:limit :offset :sort]) (assoc :distinct true))
         query-params (-> (if (string? (:text args))
                            {:text (s/lower-case (:text args))}
                            {})
@@ -283,8 +286,8 @@
         query (rdf/create-query [:project 
                              ['gene]
                              bgp])
-        result-count (query (assoc query-params ::rdf/params {:type :count}))]
-    {:gene_list (query query-params)
+        result-count (query model (assoc query-params ::rdf/params {:type :count}))]
+    {:gene_list (query model query-params)
      :count result-count}))
 
 (defn diseases-for-resolver 
@@ -292,8 +295,9 @@
   including a total count field. Value should be a map and will be merged into the query
   parameters, limiting the result to curations that match
   the given argument"
-  [args value]
-  (let [params (-> args (select-keys [:limit :offset :sort]) (assoc :distinct true))
+  [context args value]
+  (let [model (:db context)
+        params (-> args (select-keys [:limit :offset :sort]) (assoc :distinct true))
         query-params (if (:text args)
                        {:text (-> args :text s/lower-case) ::rdf/params params}
                        {::rdf/params params})
@@ -335,8 +339,8 @@
                         "<http://purl.obolibrary.org/obo/MONDO_0000001> . "
                         "?s :rdfs/label ?disease_label . "
                         "FILTER (!isBlank(?s)) }"))))
-        result-count (query (assoc query-params ::rdf/params {:type :count}))]
-    {:disease_list (query query-params)
+        result-count (query model (assoc query-params ::rdf/params {:type :count}))]
+    {:disease_list (query model query-params)
      :count result-count}))
 
 

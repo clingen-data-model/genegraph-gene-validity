@@ -5,7 +5,7 @@
             [clojure.string :as str]))
 
 (defn condition-query [context args value]
-  (rdf/resource (:db context) (:iri args)))
+  (rdf/resource (:iri args) (:db context)))
 
 ;; used
 (defn ^:expire-by-value genetic-conditions [context args value]
@@ -44,5 +44,5 @@
 ;; to fix this up if so
 ;; initial indications is that this is not being used.
 (defn diseases [context args value]
-  (curation/diseases-for-resolver args value))
+  (curation/diseases-for-resolver context args value))
 

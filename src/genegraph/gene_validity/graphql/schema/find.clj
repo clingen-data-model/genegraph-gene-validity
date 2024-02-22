@@ -138,7 +138,7 @@ FILTER(?end_position < ?end)
 (def find-query
   {:name :find
    :graphql-type :query
-   :description "Query useable to find any kind of resource in Genegraph, including genes, dieseases, affiliation groups."
+   :description "Query useable to find any kind of resource in Genegraph, including genes, dieseases, and affiliation groups."
    :type :QueryResult
    :skip-type-resolution true
    :args {:type {:type 'String}
