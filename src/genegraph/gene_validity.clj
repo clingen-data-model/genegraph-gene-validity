@@ -450,7 +450,28 @@
            count
            #_(into []))))
 
-  (def sepio-events-path "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz")
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+      (rdf/tx tdb
+        (->> (rdf/ld-> (rdf/resource "https://identifiers.org/hgnc:46902" tdb)
+                       [[:owl/sameAs :<]])
+             (filter #(rdf/is-rdf-type? % :so/Gene))
+             (into []))))
+    ;; "https://identifiers.org/hgnc:46902"
+
+    
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+      (rdf/tx tdb
+        (->> ((rdf/create-query
+               '[:project [gene]
+                 [:bgp
+                  [gene :rdf/type :so/Gene]
+                  [gene :skos/prefLabel gene_label]]])
+              tdb
+              {::rdf/params {:limit 10}})
+             count
+             #_(into []))))
+
+    (def sepio-events-path "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz")
 
   (event-store/with-event-reader [r sepio-events-path]
     (->>(event-store/event-seq r)

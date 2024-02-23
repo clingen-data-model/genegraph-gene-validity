@@ -1380,7 +1380,7 @@
 (comment
   (def c (hc/build-http-client {:connect-timeout 100
                                 :redirect-policy :always
-                                :timeout 1000}))
+                                :timeout (* 1000 60 10)}))
   (hc/post "https://genegraph.prod.clingen.app/api"
            {:http-client c
             :content-type :json
@@ -1410,20 +1410,24 @@ query($gene:String) {
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
     (->> (event-store/event-seq r)
          #_(drop 11)
-         (take 1)
          (map (fn [x]
                 (try
                   (-> x
                       ::event/value
                       (subs 59)
                       edn/read-string
-                      :servlet-request-body
-                      ;; (json/read-str :key-fn keyword)
-                      ;; :query
-                      ;; println
-                      local-request
-                    )
+                      :servlet-request-body)
+                  (catch Exception e nil))))
+         (remove #(or (nil? %) (re-find #"null" %)))
+         (map (fn [x]
+                (try
+                  {:query x
+                   :response (local-request x)}
                   (catch Exception e {:exception e}))))
-         (into [])))
+         (take 1)
+         (into [])
+         (map #(println (get (json/read-str (:query %)) "query")))))
+
+  
 
   )

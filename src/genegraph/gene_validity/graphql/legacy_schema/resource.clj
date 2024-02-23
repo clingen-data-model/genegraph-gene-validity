@@ -1,5 +1,6 @@
 (ns genegraph.gene-validity.graphql.legacy-schema.resource
-  (:require [genegraph.framework.storage.rdf :as rdf]))
+  (:require [genegraph.framework.storage.rdf :as rdf]
+            [io.pedestal.log :as log]))
 
 (comment
   (genegraph.framework.storage.rdf.types/model

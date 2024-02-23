@@ -2,18 +2,24 @@
   (:require [genegraph.framework.storage.rdf :as rdf]
             [com.walmartlabs.lacinia.schema :refer [tag-with-type]]
             [genegraph.gene-validity.graphql.common.curation :as curation]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [io.pedestal.log :as log]))
+
+(defn upcase-hgnc-id [{:keys [iri]}]
+  (if (re-find #"^((HGNC|hgnc):)?\d{1,5}$" iri)
+    (str/upper-case iri)
+    iri))
 
 ;; underlying query--probably need to keep
 (defn gene-query [context args value]
-  (let [gene (rdf/resource (:iri args) (:db context))]
+  (let [gene (rdf/resource (upcase-hgnc-id args) (:db context))]
     (if (rdf/is-rdf-type? gene :so/Gene)
       gene
-      (first (filter #(rdf/is-rdf-type? % :so/Gene) (get gene [:owl/same-as :<]))))))
+      (first (filter #(rdf/is-rdf-type? % :so/Gene) (rdf/ld-> gene [[:owl/sameAs :<]]))))))
 
 ;; TODO CURATION -- examine in context of queries in curation
 (defn genes [context args value]
-  (curation/genes-for-resolver args value))
+  (curation/genes-for-resolver context args value))
 
 ;; used
 ;; TODO CURATION -- examine in context of queries in curation

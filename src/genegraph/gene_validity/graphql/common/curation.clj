@@ -1,6 +1,7 @@
 (ns genegraph.gene-validity.graphql.common.curation
   (:require [genegraph.framework.storage.rdf :as rdf]
-            [clojure.string :as s])
+            [clojure.string :as s]
+            [io.pedestal.log :as log])
   (:import [org.apache.jena.graph NodeFactory]))
 
 (def gene-validity-bgp
@@ -87,7 +88,7 @@
 (def gene-validity-with-sort-bgp
   (conj gene-validity-bgp
         ['validity_assertion :sepio/has-subject 'validity_proposition]
-        ['gene :skos/preferred-label 'gene_label]
+        ['gene :skos/prefLabel 'gene_label]
         ['disease :rdfs/label 'disease_label]
         ['validity_assertion :sepio/qualified-contribution 'gv_contrib]
         ['gv_contrib :bfo/realizes 'role]
@@ -266,7 +267,7 @@
                          (assoc ::rdf/params params)
                          (merge value))
         gene-bgp '[[gene :rdf/type :so/Gene]
-                   [gene :skos/preferred-label gene_label]]
+                   [gene :skos/prefLabel gene_label]]
         base-bgp (if (:text args)
                    (concat (text-search-bgp 'gene :cg/resource 'text) gene-bgp)
                    gene-bgp)
@@ -284,8 +285,8 @@
                     (concat base-bgp
                             selected-curation-type-bgp)))
         query (rdf/create-query [:project 
-                             ['gene]
-                             bgp])
+                                 ['gene]
+                                 bgp])
         result-count (query model (assoc query-params ::rdf/params {:type :count}))]
     {:gene_list (query model query-params)
      :count result-count}))
