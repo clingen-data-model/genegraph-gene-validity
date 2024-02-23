@@ -439,7 +439,7 @@
      ::event/skip-publish-effects true})
 
   (->> (-> "base.edn" io/resource slurp edn/read-string)
-       #_(filter #(= ::base/hgnc (:format %)))
+       (filter #(re-find #"SEPIO" (:source %)))
        (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
                          {::event/data %})))
 
@@ -449,16 +449,14 @@
       (->> ((rdf/create-query "select ?x where { ?x a :sepio/GeneDosageReport }") tdb)
            count
            #_(into []))))
-
-    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
-      (rdf/tx tdb
-        (->> (rdf/ld-> (rdf/resource "https://identifiers.org/hgnc:46902" tdb)
-                       [[:owl/sameAs :<]])
-             (filter #(rdf/is-rdf-type? % :so/Gene))
-             (into []))))
+  ;; TODO pick up here, dosage score ordinals not working
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (into []
+            ((rdf/create-query "select ?p where {?s ?p ?o}") tdb {:s (rdf/resource "SEPIO:0002006")}))
+      ))
     ;; "https://identifiers.org/hgnc:46902"
 
-    
     (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
       (rdf/tx tdb
         (->> ((rdf/create-query

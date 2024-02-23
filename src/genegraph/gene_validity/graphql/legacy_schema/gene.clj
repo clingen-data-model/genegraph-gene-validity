@@ -68,6 +68,8 @@
   (rdf/create-query
    [:project ['dosage_report] (cons :bgp curation/gene-dosage-bgp)]))
 
+dosage-query
+
 ;; used
 ;; TODO CURATION -- examine in context of queries in curation
 (defn dosage-curation [context args value]

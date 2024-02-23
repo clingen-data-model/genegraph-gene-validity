@@ -173,6 +173,7 @@
   :geno/FunctionalCopyNumberComplement "http://purl.obolibrary.org/obo/GENO_0000963"
   :sepio/DosageScopeAssertion "http://purl.obolibrary.org/obo/SEPIO_0002505"
   :geno/PathogenicForCondition "http://purl.obolibrary.org/obo/GENO_0000840"
-  :sepio/DosageSensitivityEvaluationGuideline "http://purl.obolibrary.org/obo/SEPIO_0002002"})
+  :sepio/DosageSensitivityEvaluationGuideline "http://purl.obolibrary.org/obo/SEPIO_0002002"
+  :sepio/has-ordinal-position "http://purl.obolibrary.org/obo/SEPIO_0002506"})
 
 ;:cg/has-total-actionability-score

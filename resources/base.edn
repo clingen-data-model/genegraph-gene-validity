@@ -47,11 +47,11 @@
   :target "geno.owl"
   :format :genegraph.framework.storage.rdf/rdf-xml}
  {:name "http://purl.obolibrary.org/obo/sepio-clingen-dosage-valueset"
-  :source "https://raw.githubusercontent.com/tnavatar/SEPIO-ontology/master/src/ontology/extensions/clingen/clingen-dosage/sepio-clingen-dosage-valueset.owl"
+  :source "https://raw.githubusercontent.com/clingen-data-model/SEPIO-ontology/master/src/ontology/extensions/clingen/clingen-dosage/sepio-clingen-dosage-valueset.owl"
   :target "sepio-clingen-dosage-valueset.owl"
   :format :genegraph.framework.storage.rdf/rdf-xml}
  {:name "http://purl.obolibrary.org/obo/sepio-clingen-dosage.owl"
-  :source "https://raw.githubusercontent.com/tnavatar/SEPIO-ontology/master/src/ontology/extensions/clingen/clingen-dosage/sepio-clingen-dosage.owl"
+  :source "https://raw.githubusercontent.com/clingen-data-model/SEPIO-ontology/master/src/ontology/extensions/clingen/clingen-dosage/sepio-clingen-dosage.owl"
   :target "sepio-clingen-dosage.owl"
   :format :genegraph.framework.storage.rdf/rdf-xml}
  {:name "http://dataexchange.clinicalgenome.org/models/sepio-clingen-dosage-shapes.ttl"
@@ -71,7 +71,7 @@
   :target "sepio-clingen-actionability-valueset.ttl"
   :format :genegraph.framework.storage.rdf/turtle}
  {:name "http://purl.obolibrary.org/obo/sepio-valueset.owl"
-  :source "https://raw.githubusercontent.com/tnavatar/SEPIO-ontology/master/src/ontology/sepio-valueset.owl" 
+  :source "https://raw.githubusercontent.com/clingen-data-model/SEPIO-ontology/master/src/ontology/sepio-valueset.owl" 
   :target "sepio-valueset.owl"
   :format :genegraph.framework.storage.rdf/rdf-xml}
  {:name "http://purl.obolibrary.org/obo/sepio.owl"
@@ -80,11 +80,11 @@
   :target "sepio.owl",
   :format :genegraph.framework.storage.rdf/rdf-xml}
  {:name "http://purl.obolibrary.org/obo/sepio-clingen-acmg.owl"
-  :source "https://raw.githubusercontent.com/tnavatar/SEPIO-ontology/master/src/ontology/extensions/clingen/clingen-acmg/sepio-clingen-acmg.owl",
+  :source "https://raw.githubusercontent.com/clingen-data-model/SEPIO-ontology/master/src/ontology/extensions/clingen/clingen-acmg/sepio-clingen-acmg.owl",
   :target "sepio-clingen-acmg.owl",
   :format :genegraph.framework.storage.rdf/rdf-xml}
  {:name "http://purl.obolibrary.org/obo/sepio-clingen-acmg-valueset.owl"
-  :source "https://raw.githubusercontent.com/tnavatar/SEPIO-ontology/master/src/ontology/extensions/clingen/clingen-acmg/sepio-clingen-acmg-valueset.owl",
+  :source "https://raw.githubusercontent.com/clingen-data-model/SEPIO-ontology/master/src/ontology/extensions/clingen/clingen-acmg/sepio-clingen-acmg-valueset.owl",
   :target "sepio-clingen-acmg-valueset.owl",
   :format :genegraph.framework.storage.rdf/rdf-xml}
  {:name "http://purl.obolibrary.org/obo/sepio-clingen-gene-validity"
