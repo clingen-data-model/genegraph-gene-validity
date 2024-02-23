@@ -200,14 +200,6 @@
                  [finding-iri :dc/description (or description "")]]))
             findings)))
 
-;; TODO either make this a secondary step, or just assume everything is MONDO at this point
-;; (defn- omim-str-to-mondo [omim-str]
-;;   (when-let [omim (some->> omim-str
-;;                            (re-find #"^\d*$")
-;;                            (str "OMIM:")
-;;                            rdf/resource)]
-;;     (rdf/ld1-> omim [[:skos/has-exact-match :<]])))
-
 (defn- dosage-proposition-object [curation dosage]
   (let [legacy-mondo-field (if (= 1 dosage) :customfield_11631 :customfield_11633)
         legacy-mondo (some->> curation
@@ -301,7 +293,7 @@
         report-iri (report-iri curation)
         contribution-iri (contribution-iri curation)
         result (concat [[report-iri :rdf/type :sepio/GeneDosageReport]
-                        [report-iri :dc/is-version-of (rdf/resource base-iri)]
+                        [report-iri :dc/isVersionOf (rdf/resource base-iri)]
                         [report-iri :sepio/qualified-contribution contribution-iri]
                         [base-iri :rdf/type :sepio/GeneDosageRecord]]
                        (contribution contribution-iri curation)

@@ -48,20 +48,8 @@
    "Pediatric AWG" "http://dataexchange.clinicalgenome.org/terms/PediatricActionabilityWorkingGroup"
    "Adult AWG" "http://dataexchange.clinicalgenome.org/terms/AdultActionabilityWorkingGroup"})
 
-;; TODO need to rewrite db lookups
-#_(defn gene-resource [gene-str]
-  (rdf/ld1-> (rdf/resource gene-str) [[:owl/same-as :<]]))
-
 (defn gene-resource [gene-str]
   (rdf/resource gene-str))
-
-;; (if (re-find #"MONDO" (:iri condition))
-;;   (rdf/resource (:iri condition))
-;;   (first (filter #(re-find #"MONDO" (str %))
-;;                  (rdf/ld-> (rdf/resource (:curie condition))
-;;                            [[:skos/has-exact-match :-]]))))
-
-;; tried to find mondo equivalent in the past (see above)--no longer!
 
 (defn genetic-condition [curation-iri condition]
   (if-let [condition-resource (rdf/resource (:iri condition))]
@@ -70,7 +58,7 @@
       [[curation-iri :sepio/is-about-condition gc-node]
        [gc-node :rdf/type :sepio/GeneticCondition]
        [gc-node :rdf/type :cg/ActionabilityGeneticCondition]
-       [gc-node :rdfs/sub-class-of condition-resource]
+       [gc-node :rdfs/subClassOf condition-resource]
        [gc-node :sepio/is-about-gene gene]])
     nil))
 
@@ -143,7 +131,7 @@
        [[curation-iri :rdf/type :sepio/ActionabilityReport]
         [curation-iri :sepio/qualified-contribution contrib-iri]
         [curation-iri :dc/source (:scoreDetails curation)]
-        [curation-iri :dc/has-version (:curationVersion curation)]
+        [curation-iri :dc/hasVersion (:curationVersion curation)]
         [curation-iri :rdfs/label (:title curation)]
         [contrib-iri :sepio/activity-date (:dateISO8601 curation)]
         [contrib-iri :bfo/realizes :sepio/ApproverRole]

@@ -53,10 +53,10 @@
 
 ;; used
 (defn hgnc-id [context args value]
-  (->> (rdf/ld-> value [:owl/same-as])
+  (->> (rdf/ld-> value [:owl/sameAs])
        (filter #(= (str (rdf/ld1-> % [:dc/source])) "https://www.genenames.org"))
        first
-       str))
+       rdf/curie))
 
 ;; used
 ;; TODO CURATION -- examine in context of queries in curation

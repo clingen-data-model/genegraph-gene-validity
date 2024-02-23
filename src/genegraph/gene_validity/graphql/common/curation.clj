@@ -49,7 +49,8 @@
        pattern-curation-activities))
 
 (defn activities [model query-params]
-  (reduce (fn [acc [test activity]] 
+  (reduce (fn [acc [test activity]]
+            (log/info :test test)
             (if (test model query-params) 
               (conj acc activity)
               acc))

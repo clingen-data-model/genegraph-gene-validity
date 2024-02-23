@@ -7,6 +7,7 @@
             [clojure.data.json :as json]
             [clojure.data :as data]
             [clojure.walk :as walk]
+            [clojure.tools.analyzer.jvm :as jvma]
             [genegraph.framework.app :as gg-app]
             [genegraph.framework.kafka :as kafka]
             [genegraph.framework.kafka.admin :as kafka-admin]
@@ -17,6 +18,7 @@
             [genegraph.framework.storage.rocksdb :as rocksdb]
             [genegraph.framework.storage :as storage]
             [genegraph.framework.processor :as processor]
+            [genegraph.framework.storage.rdf.names :as names]
             [genegraph.gene-validity :as gv]
             [genegraph.gene-validity.gci-model :as gci-model]
             [genegraph.gene-validity.sepio-model :as sepio-model]
@@ -1430,4 +1432,20 @@ query($gene:String) {
 
   
 
+  )
+
+
+(comment
+  (jvma/analyze `(identity [:report :rdf/type :sepio/ActionabilityReport]))
+  (jvma/analyze-ns 'genegraph.gene-validity.actionability)
+  (s/difference
+   (set
+    (map (fn [[_ ns n]] (keyword ns n))
+         (re-seq
+          #":([A-Za-z-]+)/([A-Za-z-]+)"
+          (-> "genegraph/gene_validity/dosage.clj"
+              io/resource
+              slurp))))
+   (set
+    (keys (:keyword-mappings @names/global-aliases))))
   )
