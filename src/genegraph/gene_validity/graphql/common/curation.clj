@@ -50,8 +50,8 @@
 
 (defn activities [model query-params]
   (reduce (fn [acc [test activity]]
-            (log/info :test test)
-            (if (test model query-params) 
+            (log/info :test test :result (test model query-params))
+            (if (seq (test model query-params)) 
               (conj acc activity)
               acc))
           #{}
