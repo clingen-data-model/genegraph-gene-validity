@@ -439,7 +439,7 @@
      ::event/skip-publish-effects true})
 
   (->> (-> "base.edn" io/resource slurp edn/read-string)
-       (filter #(re-find #"SEPIO" (:source %)))
+       (filter #(re-find #"gci-express-with-entrez-ids" (:source %)))
        (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
                          {::event/data %})))
 
@@ -453,21 +453,33 @@
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
       (into []
-            ((rdf/create-query "select ?p where {?s ?p ?o}") tdb {:s (rdf/resource "SEPIO:0002006")}))
+            ((rdf/create-query "
+select ?s where
+{ ?s a :sepio/GeneValidityEvidenceLevelAssertion ;
+     ^ :bfo/has-part / :bfo/has-part / a :cnt/ContentAsText }")
+             tdb
+             {::rdf/params {:limit 10}}))
       ))
     ;; "https://identifiers.org/hgnc:46902"
 
-    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
-      (rdf/tx tdb
-        (->> ((rdf/create-query
-               '[:project [gene]
-                 [:bgp
-                  [gene :rdf/type :so/Gene]
-                  [gene :skos/prefLabel gene_label]]])
-              tdb
-              {::rdf/params {:limit 10}})
-             count
-             #_(into []))))
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (rdf/ld1-> 
+       (rdf/resource "http://dataexchange.clinicalgenome.org/gci/cb06ff0d-1cc6-494c-9ce5-f7cb26f34620" tdb)
+       [[:bfo/has-part :<]])
+      ))
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (->> ((rdf/create-query
+             '[:project [gene]
+               [:bgp
+                [gene :rdf/type :so/Gene]
+                [gene :skos/prefLabel gene_label]]])
+            tdb
+            {::rdf/params {:limit 10}})
+           count
+           #_(into []))))
 
     (def sepio-events-path "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz")
 

@@ -1449,3 +1449,25 @@ query($gene:String) {
    (set
     (keys (:keyword-mappings @names/global-aliases))))
   )
+
+
+(comment
+  (portal/clear)
+  (def hgnc->entrez
+    (with-open [r (io/reader "/users/tristan/data/genegraph-neo/base/hgnc.json")]
+      (->> (get-in (json/read r :key-fn keyword) [:response :docs])
+           (reduce (fn [a x] (assoc a (:hgnc_id x) (:entrez_id x))) {}))))
+  
+
+  (with-open [r (io/reader "/users/tristan/data/genegraph-neo/ClinGen-Gene-Expess-Data-01092020.json")
+              w (io/writer "/users/tristan/data/genegraph-neo/gci-express-with-entrez-ids.json")]
+    (binding [*out* w]
+      (json/pprint
+       (->> (json/read r :key-fn keyword)
+            (map (fn [[k v]]
+                   [k
+                    (assoc v
+                           :entrez_id
+                           (-> v :genes first second :curie hgnc->entrez))]))
+            (into {})))))
+  )

@@ -17,6 +17,7 @@
  "prov" "http://www.w3.org/ns/prov#"
  "void" "http://rdfs.org/ns/void"
  "omim" "https://omim.org/entry/"
+ "cnt" "http://www.w3.org/2011/content#"
  "hgnc" "https://identifiers.org/hgnc:"})
 
 

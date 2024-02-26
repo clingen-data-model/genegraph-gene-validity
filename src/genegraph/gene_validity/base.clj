@@ -1,5 +1,3 @@
-;; TODO delete this file; moving base functionality into a separate module
-
 (ns genegraph.gene-validity.base
   (:require [genegraph.framework.storage.rdf :as rdf]
             [genegraph.framework.event :as event]
@@ -17,6 +15,7 @@
             [genegraph.gene-validity.base.affiliations]
             [genegraph.gene-validity.base.features]
             [genegraph.gene-validity.base.ucsc-cytoband]
+            [genegraph.gene-validity.base.gci-express]
             [io.pedestal.interceptor :as interceptor]
             [io.pedestal.log :as log])
   (:import [java.io File InputStream OutputStream]
