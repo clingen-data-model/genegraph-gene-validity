@@ -349,6 +349,15 @@
  (kafka-admin/configure-kafka-for-app! gv-setup)
  (with-open [admin (kafka-admin/create-admin-client dx-ccloud-dev)]
    (kafka-admin/delete-topic admin "gene_validity_complete"))
+
+ (def stk11
+   (event-store/with-event-reader [r
+                                   "/Users/tristan/data/genegraph-neo/gv_events_complete_2024-01-12.edn.gz"]
+     (->> (event-store/event-seq r)
+          (filter #(re-find #"89685102-ac40" (::event/value %)))
+          (into []))))
+
+ (tap> (json/read-str (::event/value (first stk11))))
   
  (p/start gv-setup)
  (p/stop gv-setup)
@@ -1470,4 +1479,50 @@ query($gene:String) {
                            :entrez_id
                            (-> v :genes first second :curie hgnc->entrez))]))
             (into {})))))
+  )
+
+
+(comment
+
+  (def gv-legacy-neo4j
+    (->> "/Users/tristan/data/genegraph-neo/neo4j-legacy-events"
+         io/file
+         file-seq
+         (filter #(.isFile %))
+         (map #(-> % slurp
+                   edn/read-string
+                   :genegraph.sink.event/value))
+         first
+         tap>))
+
+  (count (s/difference gv-legacy-neo4j gv-legacy-on-stream))
+  (def gv-legacy-on-stream
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-validity-legacy_2024-02-20.edn.gz"]
+      (->> (event-store/event-seq r)
+           (map #(-> % event/deserialize ::event/data))
+           tap>)))
+
+  gv-legacy-on-stream
+  
+  )
+
+
+(portal/clear)
+(comment
+  (def existing-dosage 
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-dosage_2024-02-13.edn.gz"]
+      (->> (event-store/event-seq r)
+           (map ::event/key)
+           set)))
+
+  (def restored-dosage
+    (->> "/Users/tristan/data/genegraph-neo/gene-dosage-restored"
+         io/file
+         file-seq
+         reverse
+         (map #(re-find #"ISCA-\d+"(.getName %)))
+         set))
+
+  (s/difference existing-dosage restored-dosage)
+  
   )

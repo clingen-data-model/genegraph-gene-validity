@@ -33,44 +33,39 @@
            [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors])
   (:gen-class))
 
-(def gcs-handle
-  {:type :gcs
-   :bucket "genegraph-framework-dev"})
 
-(def gcs-base-fs-handle
-  (assoc gcs-handle :base "base/"))
+;; Environments
 
-(def fs-handle
-  {:type :file
-   :base "data/"})
-
-(def default-env
-  {:kafka-user "User:2189780"
-   :kafka-consumer-group "genegraph-gene-validity-dev-3"
-   :base-fs-handle {:type :file
-                    :base "data/base/"}
-   :local-data-path "data/"})
+(def admin-env
+  (if (System/getenv "GENEGRAPH_PLATFORM") ; prevent this in cloud deployments
+    {}
+    {:platform "stage"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
+     :local-data-path "data/"}))
 
 (def local-env
-  (case (System/getenv "GENEGRAPH_PLATFORM")
-    "gcp" (assoc (env/build-environment "522856288592" ["dev-genegraph-dev-dx-jaas"])
+  (case (or (:platform admin-env) (System/getenv "GENEGRAPH_PLATFORM"))
+    "local" {:fs-handle {:type :file :base "data/"}
+             :local-data-path "data/"}
+    "dev" (assoc (env/build-environment "522856288592" ["dataexchange-genegraph"])
                  :function (System/getenv "GENEGRAPH_FUNCTION")
-                 :base-fs-handle gcs-base-fs-handle
+                 :kafka-user "User:2189780"
+                 :kafka-consumer-group "genegraph-gene-validity-dev-3"
+                 :fs-handle {:type :gcs
+                             :bucket "genegraph-framework-dev"}
                  :local-data-path "/data")
-    {:dev-genegraph-dev-dx-jaas (System/getenv "DX_JAAS_CONFIG_DEV")}))
-
-;; for trying out 
-(defonce local-cloud-test-env
-  (merge default-env
-         (env/build-environment "522856288592" ["dev-genegraph-dev-dx-jaas"])
-         {:function "fetch-base"
-          :base-fs-handle gcs-base-fs-handle
-          :local-data-path "data/"}))
+    "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
+                   :function (System/getenv "GENEGRAPH_FUNCTION")
+                   :kafka-user "User:2592237"
+                   :kafka-consumer-group "genegraph-gene-validity-stage-1"
+                   :fs-handle {:type :gcs
+                               :bucket "genegraph-gene-validity-stage-1"}
+                   :local-data-path "/data")))
 
 (def env
-  (merge default-env local-env))
+  (merge local-env admin-env))
 
-#_(def env local-cloud-test-env)
+;; Interceptors for reader
 
 (def prop-query
   (rdf/create-query "select ?x where {?x a ?type}"))
@@ -213,7 +208,7 @@
                    "bootstrap.servers" "pkc-4yyd6.us-east1.gcp.confluent.cloud:9092"
                    "retry.backoff.ms" "500"
                    "security.protocol" "SASL_SSL"
-                   "sasl.jaas.config" (:dev-genegraph-dev-dx-jaas env)}
+                   "sasl.jaas.config" (:dataexchange-genegraph env)}
    :consumer-config {"key.deserializer"
                      "org.apache.kafka.common.serialization.StringDeserializer"
                      "value.deserializer"
@@ -228,7 +223,7 @@
 (def gene-validity-version-store
   {:name :gene-validity-version-store
    :type :rocksdb
-   :path "data/version-store"})
+   :path (str (:local-data-path local-env) "data/version-store")})
 
 (def transform-processor
   {:type :processor
@@ -251,14 +246,15 @@
    :subscribe :fetch-base-events
    :interceptors [base/fetch-file
                   base/publish-base-file]
-   ::event/metadata {::base/handle (:base-fs-handle env)}})
+   ::event/metadata {::base/handle
+                     (assoc (:fs-handle env) :path "base/")}})
 
 ;;;; GraphQL
 
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
-   :path "data/gv-tdb"})
+   :path (str (:local-data-path local-env) "/gv-tdb")})
 
 (def import-base-processor
   {:name :import-base-file
@@ -410,7 +406,6 @@
     (->> (event-store/event-seq r)
          (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %))))
 
-
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-dosage_2024-02-13.edn.gz"]
     (->> (event-store/event-seq r)
          (run! #(p/publish (get-in gv-test-app [:topics :dosage]) %))))
@@ -509,13 +504,13 @@ select ?s where
              :serialization :edn
              :kafka-consumer-group (:kafka-consumer-group env)
              :kafka-cluster :data-exchange
-             :kafka-topic "genegraph-fetch-base-events"}
+             :kafka-topic "genegraph-fetch-base-events-v1"}
             :base-data
             {:name :base-data
              :type :kafka-producer-topic
              :serialization :edn
              :kafka-cluster :data-exchange
-             :kafka-topic "genegraph-base"}}
+             :kafka-topic "genegraph-base-v1"}}
    :processors {:fetch-base (assoc fetch-base-processor
                                    :kafka-cluster :data-exchange)}
    :http-servers gv-ready-server})
@@ -538,7 +533,7 @@ select ?s where
              :type :kafka-producer-topic
              :kafka-cluster :data-exchange
              :serialization :edn
-             :kafka-topic "genegraph-fetch-base-events"}
+             :kafka-topic "genegraph-fetch-base-events-v1"}
             :initiate-fetch
             {:name :initiate-fetch
              :type :simple-queue-topic}}
@@ -561,10 +556,12 @@ select ?s where
     (kafka-admin/delete-topic client "genegraph-fetch-base-events")
     (kafka-admin/delete-topic client "genegraph-base")
     (kafka-admin/delete-acls-for-user client (:kafka-user env)))
-  
+
   (kafka-admin/configure-kafka-for-app! gv-base-app)
   (p/start gv-base-app)
   (p/stop gv-base-app)
+
+  env
 
   (def acls
     (with-open [a (kafka-admin/create-admin-client data-exchange)]
@@ -596,13 +593,13 @@ select ?s where
                :kafka-consumer-group (:kafka-consumer-group env)
                :kafka-cluster :data-exchange
                :serialization :json
-               :kafka-topic "gene_validity_complete"}
+               :kafka-topic "gene_validity_complete-v1"}
               :gene-validity-sepio
               {:name :gene-validity-sepio
                :type :kafka-producer-topic
                :kafka-cluster :data-exchange
                :serialization ::rdf/n-triples
-               :kafka-topic "gene_validity_sepio"}}
+               :kafka-topic "gene_validity_sepio-v1"}}
      :storage {:gene-validity-version-store gene-validity-version-store}
      :processors {:gene-validity-transform
                   (assoc transform-processor
@@ -670,13 +667,13 @@ select ?s where
              :type :kafka-reader-topic
              :kafka-cluster :data-exchange
              :serialization ::rdf/n-triples
-             :kafka-topic "gene_validity_sepio"}
+             :kafka-topic "gene_validity_sepio-v1"}
             :base-data
             {:name :base-data
              :type :kafka-reader-topic
              :kafka-cluster :data-exchange
              :serialization :edn
-             :kafka-topic "genegraph-base"}}
+             :kafka-topic "genegraph-base-v1"}}
    :processors {:import-gv-curations import-gv-curations
                 :import-base-file import-base-processor
                 :graphql-api graphql-api}
@@ -715,126 +712,3 @@ select ?s where
                                            :msg "stopping genegraph")
                                  (p/stop app))))
     (p/start app)))
-
-(comment
-
-  (def producer-conf
-    {"ssl.endpoint.identification.algorithm" "https",
-     "transactional.id" "fetch-base-file",
-     "bootstrap.servers" "pkc-4yyd6.us-east1.gcp.confluent.cloud:9092",
-     "request.timeout.ms" "20000",
-     "retry.backoff.ms" "500",
-     "value.serializer" "org.apache.kafka.common.serialization.StringSerializer",
-     "key.serializer" "org.apache.kafka.common.serialization.StringSerializer",
-     "max.request.size" (int 10485760),
-     "sasl.jaas.config"   #_(System/getenv "DX_JAAS_CONFIG_DEV")
-     "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"W3STYBUN3GXNKBHM\" password=\"bEgjbHg5iNTi+bACjK084oUMGcGfF/6hKbJGzMQoBG3TRM1tM2nwDNC9AHuMxTM6\";",
-     "sasl.mechanism" "PLAIN",
-     "security.protocol" "SASL_SSL"})
-
-  (def p (KafkaProducer. producer-conf))
-  (.initTransactions p)
-  (.close p)
-  
-  )
-
-(comment
-
-  (def gv-event-path "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz")
-
-  (def gv-app
-    (p/init
-     {:type :genegraph-app
-      :kafka-clusters {:local
-                       {:common-config {"bootstrap.servers" "localhost:9092"}
-                        :producer-config {"key.serializer"
-                                          "org.apache.kafka.common.serialization.StringSerializer",
-                                          "value.serializer"
-                                          "org.apache.kafka.common.serialization.StringSerializer"}
-                        :consumer-config {"key.deserializer"
-                                          "org.apache.kafka.common.serialization.StringDeserializer"
-                                          "value.deserializer"
-                                          "org.apache.kafka.common.serialization.StringDeserializer"}}}
-      :topics {:gene-validity-gci
-               {:name :gene-validity-gci
-                :type :kafka-consumer-group-topic
-                :serialization :json
-                :kafka-consumer-group "gvt0"
-                :kafka-cluster :local
-                :kafka-topic "gene_validity_complete"}
-               :gene-validity-sepio
-               {:name :gene-validity-sepio
-                :type :kafka-producer-topic
-                :serialization ::rdf/n-triples
-                :kafka-cluster :local
-                :kafka-topic "gene_validity_sepio"}}
-      :processors {:gene-validity-transform
-                   {:type :processor
-                    :name :gene-validity-processor
-                    :interceptors `[gci-model/add-gci-model
-                                    sepio-model/add-model
-                                    add-iri
-                                    add-publish-actions]}}}))
-
-  (p/start gv-test-app)
-  (p/stop gv-test-app)
-
-
-  (time
-   (storage/store-snapshot (get-in gv-test-app [:storage :gv-tdb]) gcs-handle))
-
-  (time
-   (storage/restore-snapshot (get-in gv-test-app [:storage :gv-tdb]) gcs-handle))
-
-
-
-  
-  (->> (-> "base.edn" io/resource slurp edn/read-string)
-       (take 1)
-       #_(filter #(isa? (:format %) ::rdf/rdf-serialization))
-       #_(filter #(= "http://purl.obolibrary.org/obo/sepio.owl" (:name %)))
-       (map (fn [x] {::event/data x}))
-       (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events]) %)))
-
-  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
-    db
-    (rdf/tx db
-      (-> ((rdf/create-query "select ?x where { ?x a :so/Gene } limit 5")
-           (rdf/resource "https://www.ncbi.nlm.nih.gov/gene/55847" db))
-          first)))
-
-  ;; Load all gene validity stuff into Genegraph (takes ~20m with parallel execution
-  (time
-   (event-store/with-event-reader [r gv-event-path]
-     (->> (event-store/event-seq r)
-          (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-gci]) %)))))
-
-  (def gv-xform #(processor/process-event
-                  (get-in gv-test-app [:processors :gene-validity-transform])
-                  %))
-
-  (event-store/with-event-reader [r gv-event-path]
-    (frequencies
-     (map
-      #(-> (rdf/ld1-> % [:rdf/type]) rdf/->kw)
-      ((rdf/create-query "select ?x where { ?x :sepio/has-evidence ?y }")
-       (-> (event-store/event-seq r)
-           first
-           (assoc ::event/skip-local-effects true
-                  ::event/skip-publish-effects true)
-           gv-xform
-           :gene-validity/model)))))
-  
-
-  ;; gcloud builds submit --region=us-east1 --tag us-east1-docker.pkg.dev/clingen-dev/genegraph-docker-repo/genegraph-gene-validity:v2
-
-  (def sepio-events-path "/users/tristan/data/genegraph-neo/sepio_gv_events.edn.gz")
-
-  (def gv-graphql (p/init gv-graphql-endpoint-def))
-
-  (kafka/topic->event-file (get-in gv-graphql [:topics :gene-validity-sepio])
-                           sepio-events-path)
-  
-  )
-
-
