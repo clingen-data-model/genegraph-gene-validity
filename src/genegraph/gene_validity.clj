@@ -39,8 +39,8 @@
 (def admin-env
   (if (System/getenv "GENEGRAPH_PLATFORM") ; prevent this in cloud deployments
     {}
-    {:platform "stage"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
+    {:platform "dev"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
      :local-data-path "data/"}))
 
 (def local-env
@@ -223,7 +223,7 @@
 (def gene-validity-version-store
   {:name :gene-validity-version-store
    :type :rocksdb
-   :path (str (:local-data-path local-env) "data/version-store")})
+   :path (str (:local-data-path env) "version-store")})
 
 (def transform-processor
   {:type :processor
@@ -254,7 +254,7 @@
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
-   :path (str (:local-data-path local-env) "/gv-tdb")})
+   :path (str (:local-data-path env) "/gv-tdb")})
 
 (def import-base-processor
   {:name :import-base-file
@@ -583,7 +583,6 @@ select ?s where
   
   )
 
-;; Obviously update to dx-ccloud for real production
 (def gv-transformer-def
     {:type :genegraph-app
      :kafka-clusters {:data-exchange data-exchange}

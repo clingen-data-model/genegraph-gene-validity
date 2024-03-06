@@ -27,6 +27,7 @@
             [genegraph.gene-validity.dosage :as dosage]
             [portal.api :as portal]
             [io.pedestal.log :as log]
+            [io.pedestal.interceptor :as interceptor]
             [com.walmartlabs.lacinia :as lacinia]
             [com.walmartlabs.lacinia.schema :as schema]
             [com.walmartlabs.lacinia.util :as util]
@@ -216,6 +217,7 @@
 
 (def dx-ccloud
   {:type :kafka-cluster
+   :kafka-user "User:2592237"
    :common-config {"ssl.endpoint.identification.algorithm" "https"
                    "sasl.mechanism" "PLAIN"
                    "request.timeout.ms" "20000"
@@ -267,6 +269,13 @@
   (event/publish event (assoc (:payload event)
                               ::event/topic :gv-complete)))
 
+(def gene-validity-raw-publisher
+  (interceptor/interceptor
+   {:name ::gene-validity-raw-publisher
+    :enter (fn [event]
+             (event/publish event (assoc (:payload event)
+                                         ::event/topic :gv-complete)))}))
+
 (defn transformer-fn [event]
   (println "reading offset: "
            (::event/offset event)
@@ -312,18 +321,27 @@
                    :type :processor
                    :kafka-cluster :local
                    :subscribe :publish-gv
-                   :interceptors `[publisher-fn]}
+                   :interceptors [publisher-fn]}
                   :gv-transformer
                   {:name :gv-transformer
                    :type :processor
                    :kafka-cluster :local
                    :subscribe :gv-complete
-                   :interceptors `[transformer-fn]}}}))
+                   :interceptors [transformer-fn]}}}))
 
  
 
  (p/start gv)
  (p/stop gv)
+
+ ;; Initialize Gene Validity topic
+
+ (def gene-validity-raw-publisher
+  (interceptor/interceptor
+   {:name ::gene-validity-raw-publisher
+    :enter (fn [event]
+             (event/publish event (assoc (:payload event)
+                                         ::event/topic :gv-complete)))}))
  
  (def gv-setup
    (p/init
@@ -333,7 +351,7 @@
               {:name :gv-complete
                :type :kafka-producer-topic
                :kafka-cluster :local
-               :kafka-topic "gene_validity_complete"}
+               :kafka-topic "gene_validity_complete-v1"}
               :publish-gv
               {:name :publish-gv
                :type :simple-queue-topic}}
@@ -342,7 +360,48 @@
                    :type :processor
                    :kafka-cluster :local
                    :subscribe :publish-gv
-                   :interceptors `[publisher-fn]}}}))
+                   :interceptors [gene-validity-raw-publisher]}}}))
+
+ (kafka-admin/configure-kafka-for-app! gv-setup)
+ 
+ (def sept-1-2020
+   (-> (OffsetDateTime/parse "2020-09-01T00:00Z")
+       .toInstant
+       .toEpochMilli))
+
+ (defn prior-event->publish-fn [e]
+   {:payload
+    (-> e
+        (s/rename-keys {:genegraph.sink.event/key ::event/key
+                        :genegraph.sink.event/value ::event/data})
+        (select-keys [::event/key ::event/data])
+        (assoc ::event/timestamp sept-1-2020))})
+
+ (def gv-prior-events
+   (concat
+    (event-seq-from-directory "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-snapshot")
+    (event-seq-from-directory "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-missing-data")))
+
+ 
+ (->> gv-prior-events
+      (take 1)
+      (map prior-event->publish-fn)
+      (map #(assoc %
+                   ::event/skip-local-effects true
+                   ::event/skip-publish-effects true))
+      (mapv (fn [e] (p/process (get-in gv-setup [:processors :gv-publisher]))))
+      tap>)
+
+ (p/start gv-setup)
+ (p/stop gv-setup)
+ 
+ (run! #(p/publish (get-in gv-setup [:topics :publish-gv])
+                   (prior-event->publish-fn %))
+       gv-prior-events)
+                                        ; do all in a min...
+
+ ;; Initialize gv-complete
+ 
  (event-store/with-event-writer [w "/Users/tristan/data/genegraph-neo/all_gv_events_2024-01-16.edn.gz"]
    (kafka/topic->event-file (get-in gv [:topics :gv-complete]) w))
 

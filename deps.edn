@@ -18,8 +18,11 @@
   :dev {:extra-deps {io.github.nubank/morse {:git/tag "v2023.04.30.01"
                                              :git/sha "d99b09c"}
                      djblue/portal {:mvn/version "0.51.1"}
-                     io.github.nextjournal/clerk {:mvn/version "0.15.957"}}}}
+                     io.github.nextjournal/clerk {:mvn/version "0.15.957"}}
+        :jvm-opts ["-agentpath:/Applications/YourKit-Java-Profiler-2023.9.app/Contents/Resources/bin/mac/libyjpagent.dylib=disablestacktelemetry,exceptions=disable,delay=10000"]}}
 
+ :jvm-opts ["-XX:+UseZGC" "-XX:+ZGenerational" "-XX:MaxRAMPercentage=50"]
+ 
  :deps
  {ch.qos.logback/logback-classic                    {:mvn/version "1.5.0"}
   org.clojure/clojure                               {:mvn/version "1.11.1"}
