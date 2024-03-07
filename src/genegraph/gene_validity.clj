@@ -37,11 +37,12 @@
 ;; Environments
 
 (def admin-env
-  (if (System/getenv "GENEGRAPH_PLATFORM") ; prevent this in cloud deployments
-    {}
+  (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
+          (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
     {:platform "dev"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
-     :local-data-path "data/"}))
+     :local-data-path "data/"}
+    {}))
 
 (def local-env
   (case (or (:platform admin-env) (System/getenv "GENEGRAPH_PLATFORM"))
@@ -60,7 +61,8 @@
                    :kafka-consumer-group "genegraph-gene-validity-stage-1"
                    :fs-handle {:type :gcs
                                :bucket "genegraph-gene-validity-stage-1"}
-                   :local-data-path "/data")))
+                   :local-data-path "/data")
+    {}))
 
 (def env
   (merge local-env admin-env))
@@ -233,8 +235,8 @@
    :interceptors [gci-model/add-gci-model
                   sepio-model/add-model
                   add-iri
-                  add-publish-actions
-                  versioning/add-version]})
+                  versioning/add-version
+                  add-publish-actions]})
 
 
 
@@ -592,6 +594,7 @@ select ?s where
                :kafka-consumer-group (:kafka-consumer-group env)
                :kafka-cluster :data-exchange
                :serialization :json
+               :buffer-size 5
                :kafka-topic "gene_validity_complete-v1"}
               :gene-validity-sepio
               {:name :gene-validity-sepio
@@ -694,11 +697,64 @@ select ?s where
 
   )
 
+(def append-gene-validity-raw
+  {:name ::append-gene-validity-raw
+   :enter (fn [e]
+            (event/publish
+             e
+             (assoc
+              (select-keys e [::event/data ::event/key ::event/value ::event/timestamp])
+              ::event/data (::event/value e)
+              ::event/topic :gene-validity-complete)))})
+
+(def gv-appender-def
+  {:type :genegraph-app
+   :kafka-clusters {:data-exchange data-exchange}
+   :topics {:gene-validity-raw
+            {:name :gene-validity-raw
+             :type :kafka-consumer-group-topic
+             :kafka-consumer-group (:kafka-consumer-group env)
+             :kafka-cluster :data-exchange
+             :kafka-topic "gene_validity_raw"}
+            :gene-validity-complete
+            {:name :gene-validity-complete
+             :type :kafka-producer-topic
+             :kafka-cluster :data-exchange
+             :kafka-topic "gene_validity_complete-v1"}}
+   :processors {:gene-validity-appender
+                {:name :gene-validity-appender
+                 :type :processor
+                 :subscribe :gene-validity-raw
+                 :kafka-cluster :data-exchange
+                 :interceptors [append-gene-validity-raw]}}
+   :http-servers gv-ready-server})
+
+(comment
+  (def gv-appender
+    (p/init gv-appender-def))
+
+  (:kafka-clusters gv-appender-def)
+
+  (kafka-admin/configure-kafka-for-app! gv-appender)
+
+  (p/start gv-appender)
+  (p/stop gv-appender)
+
+
+  (p/process (get-in gv-appender [:processors :gene-validity-appender])
+             {::event/skip-local-effects true
+              ::event/skip-publish-effects true
+              ::event/value "{\"a\":\"a\"}"
+              ::event/key "a"
+              ::event/timestamp 1234})
+  )
+
 
 (def genegraph-function
   {"fetch-base" gv-base-app-def
    "transform-curations" gv-transformer-def
-   "graphql-endpoint" gv-graphql-endpoint-def})
+   "graphql-endpoint" gv-graphql-endpoint-def
+   "appender" gv-appender-def})
 
 (defn -main [& args]
   (log/info :fn ::-main

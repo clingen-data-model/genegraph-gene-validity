@@ -346,7 +346,7 @@
  (def gv-setup
    (p/init
     {:type :genegraph-app
-     :kafka-clusters {:local dx-ccloud-dev}
+     :kafka-clusters {:local dx-ccloud}
      :topics {:gv-complete
               {:name :gv-complete
                :type :kafka-producer-topic
@@ -399,7 +399,6 @@
                    (prior-event->publish-fn %))
        gv-prior-events)
                                         ; do all in a min...
-
  ;; Initialize gv-complete
  
  (event-store/with-event-writer [w "/Users/tristan/data/genegraph-neo/all_gv_events_2024-01-16.edn.gz"]
