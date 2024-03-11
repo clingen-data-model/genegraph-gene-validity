@@ -35,17 +35,20 @@
             [hato.client :as hc])
   (:import [java.io File PushbackReader FileOutputStream BufferedWriter FileInputStream BufferedReader]
            [java.nio ByteBuffer]
+           [java.lang.management GarbageCollectorMXBean ManagementFactory]
            [java.time Instant OffsetDateTime]
            [java.util.zip GZIPInputStream GZIPOutputStream]
            [java.util.concurrent ThreadPoolExecutor Executor LinkedBlockingQueue TimeUnit]))
 
-
+#_(mapv
+ #(.getName %)
+ (ManagementFactory/getGarbageCollectorMXBeans))
 
 (defn event-seq-from-directory [directory]
   (let [files (->> directory
-                  io/file
-                  file-seq
-                  (filter #(re-find #".edn" (.getName %))))]
+                   io/file
+                   file-seq
+                   (filter #(re-find #".edn" (.getName %))))]
     (map #(edn/read-string (slurp %)) files)))
 
 (comment

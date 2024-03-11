@@ -51,7 +51,7 @@
     "dev" (assoc (env/build-environment "522856288592" ["dataexchange-genegraph"])
                  :function (System/getenv "GENEGRAPH_FUNCTION")
                  :kafka-user "User:2189780"
-                 :kafka-consumer-group "genegraph-gene-validity-dev-3"
+                 :kafka-consumer-group "genegraph-gene-validity-dev-13"
                  :fs-handle {:type :gcs
                              :bucket "genegraph-framework-dev"}
                  :local-data-path "/data")
@@ -227,16 +227,42 @@
    :type :rocksdb
    :path (str (:local-data-path env) "version-store")})
 
+(defn report-transform-errors-fn [event]
+  (Thread/startVirtualThread
+   (fn []
+     (case (deref (::event/completion-promise event) (* 1000 30) :timeout)
+       :timeout (log/warn :fn ::report-transform-errors
+                          :msg "timeout"
+                          :offset (::event/offset event)
+                          :key (::event/key event))
+       false (log/warn :fn ::report-transform-errors
+                          :msg "processing error"
+                          :offset (::event/offset event)
+                          :key (::event/key event))
+       true)))
+  event)
+
+(def report-transform-errors
+  {:name ::report-transform-errors
+   :enter (fn [e] (report-transform-errors-fn e))
+   :error (fn [e ex] (log/warn :fn ::report-transform-errors
+                               :msg "error in interceptors"
+                               :offset (::event/offset e)
+                               :key (::event/key e)
+                               :exception ex)
+            e)})
+
 (def transform-processor
   {:type :processor
    :name :gene-validity-transform
    :subscribe :gene-validity-gci
    :backing-store :gene-validity-version-store
-   :interceptors [gci-model/add-gci-model
+   :interceptors [report-transform-errors
+                  gci-model/add-gci-model
                   sepio-model/add-model
                   add-iri
-                  versioning/add-version
-                  add-publish-actions]})
+                  add-publish-actions
+                  versioning/add-version]})
 
 
 
@@ -415,6 +441,17 @@
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
     (->> (event-store/event-seq r)
          (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-gci]) %))))
+  
+  (def eset1
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
+      (->> (event-store/event-seq r)
+           (take 1000)
+           (mapv (fn [e] (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+                                    (assoc e
+                                           ::event/skip-publish-effects true
+                                           ::event/completion-promise (promise))))))))
+
+  (->> eset1 (remove #(realized? (::event/completion-promise %))) count)
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-validity-legacy_2024-02-20.edn.gz"]
     (->> (event-store/event-seq r)
@@ -640,11 +677,40 @@ select ?s where
   (p/start gv-transformer-prod)
   (p/stop gv-transformer-prod)
 
+  (def fucked-events
+    (->> (get-in gv-transformer-prod [:topics :gene-validity-gci :event-status-queue])
+         .iterator
+         iterator-seq
+         (remove #(realized? (::event/completion-promise %)))
+         (into [])))
+
+  (->> (get-in gv-transformer-prod [:topics :gene-validity-gci :event-status-queue])
+           .size)
   
-  (event-store/with-event-reader [r
-                                  "/Users/tristan/data/genegraph-neo/gv_events_complete_2024-01-12.edn.gz"]
-    (->> (event-store/event-seq r)
-         count))
+  (count fucked-events)
+
+  (map ::event/key fucked-events)
+
+  (-> (get-in gv-transformer-prod [:topics :gene-validity-gci])
+      kafka/start-status-queue-monitor)
+
+  
+  (def processed-gv-events
+    (event-store/with-event-reader [r
+                                    "/Users/tristan/data/genegraph-neo/gv_events_complete_2024-01-12.edn.gz"]
+      (->> (event-store/event-seq r)
+           (take 1)
+           (map #(assoc %
+                        ::event/format :json
+                        ::event/completion-promise (promise)))
+           (map (fn [e]
+                  (-> (p/process (get-in gv-transformer-prod
+                                         [:processors :gene-validity-transform])
+                                 e)
+                      (dissoc :gene-validity/gci-model :gene-validity/model))))
+           (into []))))
+
+  (tap> processed-gv-events)
 
   (def gv-transformer-test
     (p/init gv-transformer-test-def))
@@ -670,6 +736,24 @@ select ?s where
              :kafka-cluster :data-exchange
              :serialization ::rdf/n-triples
              :kafka-topic "gene_validity_sepio-v1"}
+            :dosage
+            {:name :dosage
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :json
+             :kafka-topic "gene_dosage_raw"}
+            :actionability
+            {:name :actionability
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :json
+             :kafka-topic "actionability"}
+            :gene-validity-legacy
+            {:name :gene-validity-legacy
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :json
+             :kafka-topic "gene_validity"} ; <<change to complete topic when exists>>
             :base-data
             {:name :base-data
              :type :kafka-reader-topic
@@ -678,7 +762,10 @@ select ?s where
              :kafka-topic "genegraph-base-v1"}}
    :processors {:import-gv-curations import-gv-curations
                 :import-base-file import-base-processor
-                :graphql-api graphql-api}
+                :graphql-api graphql-api
+                :import-actionability-curations import-actionability-curations
+                :import-dosage-curations import-dosage-curations
+                :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
    :http-servers gv-http-server})
 
 (comment
