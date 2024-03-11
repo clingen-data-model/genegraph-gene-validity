@@ -39,14 +39,14 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "dev"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
+    {:platform "stage"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
 
 (def local-env
   (case (or (:platform admin-env) (System/getenv "GENEGRAPH_PLATFORM"))
-    "local" {:fs-handle {:type :file :base "data/"}
+    "local" {:fs-handle {:type :file :base "data/base/"}
              :local-data-path "data/"}
     "dev" (assoc (env/build-environment "522856288592" ["dataexchange-genegraph"])
                  :function (System/getenv "GENEGRAPH_FUNCTION")
@@ -143,7 +143,10 @@
                (.begin gv-tdb ReadWrite/READ)
                (assoc-in context [:request :lacinia-app-context :db] gv-tdb)))
     :leave (fn [context]
-             (.end (get-in context [:request :lacinia-app-context :db]))
+             (.end (get-in context [::storage/storage :gv-tdb]))
+             context)
+    :error (fn [context ex]
+             (.end (get-in context [::storage/storage :gv-tdb]))
              context)}))
 
 ;; stuff to make sure Lacinia recieves an executor which can bookend
@@ -184,10 +187,10 @@
 
 (defn publish-record-to-system-topic-fn [event]
   (event/publish event
-                 (assoc (select-keys event [::event/iri ::event/key])
-                     ::event/topic :system
-                     :type :event-marker
-                     :source (::event/topic event))))
+                 {::event/topic :system
+                  :type :event-marker
+                  ::event/data (assoc (select-keys event [::event/key])
+                                      :source (::event/topic event))}))
 
 (def publish-record-to-system-topic
   (interceptor/interceptor
@@ -252,6 +255,9 @@
                                :exception ex)
             e)})
 
+
+
+
 (def transform-processor
   {:type :processor
    :name :gene-validity-transform
@@ -293,12 +299,54 @@
                   base/read-base-data
                   base/store-model]})
 
+(def genes-graph-name
+  "https://www.genenames.org/")
+
+(defn init-await-genes [name]
+  (fn [p]
+    (let [genes-promise (promise)]
+      (p/publish (get-in p [:topics :system])
+                 {:type :register-listener
+                  :name name
+                  :promise genes-promise
+                  :predicate #(and (= :base-data (get-in % [::event/data :source]))
+                                   (= genes-graph-name
+                                      (get-in % [::event/data ::event/key])))})
+
+      (assoc p
+             ::event/metadata
+             {::genes-promise genes-promise
+              ::genes-atom (atom false)}))))
+
+(defn graph-initialized? [e graph-name]
+  (let [db (get-in e [::storage/storage :gv-tdb])]
+    (rdf/tx db
+      (-> (storage/read db graph-name)
+          .size
+          (> 0)))))
+
+(defn await-genes-fn [{:keys [::genes-promise ::genes-atom] :as e}]
+  (when-not @genes-atom
+    (while (or (not (graph-initialized? e genes-graph-name))
+               (= :timeout (deref genes-promise (* 1000 5) :timeout)))
+      (log/info :fn ::await-genes-fn :msg "Awaiting genes load"))
+    (log/info :fn ::await-genes-fn :msg "Genes loaded")
+    (reset! genes-atom true))
+  e)
+
+(def await-genes
+  (interceptor/interceptor
+   {:name ::await-genes
+    :enter (fn [e] (await-genes-fn e))}))
+
 (def import-gv-curations
   {:type :processor
    :subscribe :gene-validity-sepio
    :name :gene-validity-sepio-reader
    :backing-store :gv-tdb
-   :interceptors [replace-hgnc-with-ncbi-gene
+   :init-fn (init-await-genes ::import-gv-curations-await-genes)
+   :interceptors [await-genes
+                  replace-hgnc-with-ncbi-gene
                   store-curation]})
 
 (def import-actionability-curations
@@ -306,7 +354,9 @@
    :subscribe :actionability
    :name :import-actionability-curations
    :backing-store :gv-tdb
-   :interceptors [actionability/add-actionability-model
+   :init-fn (init-await-genes ::import-actionability-curations-await-genes)
+   :interceptors [await-genes
+                  actionability/add-actionability-model
                   actionability/write-actionability-model-to-db]})
 
 (def import-dosage-curations
@@ -314,7 +364,9 @@
    :subscribe :dosage
    :name :import-dosage-curations
    :backing-store :gv-tdb
-   :interceptors [dosage/add-dosage-model
+   :init-fn (init-await-genes ::import-dosage-curations-await-genes)
+   :interceptors [await-genes
+                  dosage/add-dosage-model
                   dosage/write-dosage-model-to-db]})
 
 (def gene-validity-legacy-report-processor
@@ -427,8 +479,12 @@
   (def gv-test-app
     (p/init gv-test-app-def))
 
+  (-> (get-in gv-test-app [:processors :import-gv-curations])
+      ::event/metadata)
+
   (p/start gv-test-app)
   (p/stop gv-test-app)
+  
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
     (->> (event-store/event-seq r)
@@ -440,7 +496,63 @@
   
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
     (->> (event-store/event-seq r)
+         (take 1)
          (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-gci]) %))))
+  
+  ;; Gene names testing
+
+  (let [rdf-publish-promise (promise)]
+
+    (Thread/startVirtualThread #(let [x (deref rdf-publish-promise 5000 :timeout)]
+                                  (if (= :timeout x)
+                                    (println "timeout")
+                                    (println "delivered"))))
+
+    (p/publish (get-in gv-test-app [:topics :system])
+               {:type :register-listener
+                :name ::rdf-publish-listener
+                :promise rdf-publish-promise
+                :predicate #(and (= :base-data (get-in % [::event/data :source]))
+                                 (= "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                                    (get-in % [::event/data ::event/key])))})
+
+    ;; testing with something smaller and faster first
+    (->> (-> "base.edn" io/resource slurp edn/read-string)
+         (filter #(= "http://www.w3.org/1999/02/22-rdf-syntax-ns#" (:name %)))
+         (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
+                           {::event/data %}))))
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (-> (storage/read tdb "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+          .size)))
+  
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (-> (storage/read tdb "https://www.genenames.org/")
+          .size)))
+
+  (->> (-> "base.edn" io/resource slurp edn/read-string)
+       (filter #(= "https://www.genenames.org/" (:name %)))
+       (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
+                         {::event/data %})))
+
+  (def gene-publish-event
+    (->> (-> "base.edn" io/resource slurp edn/read-string)
+         (filter #(= "https://www.genenames.org/" (:name %)))
+         (map (fn [e]
+                (-> {::event/data e
+                     ::base/handle (:fs-handle env)}
+                    base/publish-base-file-fn
+                    ::event/publish
+                    first)))))
+
+  (p/publish (get-in gv-test-app [:topics :base-data])
+             gene-publish-event)
+
+  (-> (get-in gv-test-app [:topics :fetch-base-events]) )
+
+  ;; / gene names testing
   
   (def eset1
     (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
@@ -450,6 +562,9 @@
                                     (assoc e
                                            ::event/skip-publish-effects true
                                            ::event/completion-promise (promise))))))))
+
+  
+
 
   (->> eset1 (remove #(realized? (::event/completion-promise %))) count)
 
@@ -478,6 +593,9 @@
                          {::event/data %})))
 
   (p/process (get-in gv-test-app [:processors :fetch-base-file]) b1)
+
+
+  
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
       (->> ((rdf/create-query "select ?x where { ?x a :sepio/GeneDosageReport }") tdb)
