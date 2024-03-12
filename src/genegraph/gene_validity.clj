@@ -39,7 +39,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "stage"
+    {:platform "local"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -233,7 +233,7 @@
 (defn report-transform-errors-fn [event]
   (Thread/startVirtualThread
    (fn []
-     (case (deref (::event/completion-promise event) (* 1000 30) :timeout)
+     (case (deref (::event/completion-promise event) (* 1000 5) :timeout)
        :timeout (log/warn :fn ::report-transform-errors
                           :msg "timeout"
                           :offset (::event/offset event)
@@ -302,12 +302,12 @@
 (def genes-graph-name
   "https://www.genenames.org/")
 
-(defn init-await-genes [name]
+(defn init-await-genes [listener-name]
   (fn [p]
     (let [genes-promise (promise)]
       (p/publish (get-in p [:topics :system])
                  {:type :register-listener
-                  :name name
+                  :name listener-name
                   :promise genes-promise
                   :predicate #(and (= :base-data (get-in % [::event/data :source]))
                                    (= genes-graph-name
@@ -325,11 +325,14 @@
           .size
           (> 0)))))
 
-(defn await-genes-fn [{:keys [::genes-promise ::genes-atom] :as e}]
+(defn await-genes-fn [{:keys [::genes-promise ::genes-atom ::event/kafka-topic] :as e}]
   (when-not @genes-atom
-    (while (or (not (graph-initialized? e genes-graph-name))
-               (= :timeout (deref genes-promise (* 1000 5) :timeout)))
-      (log/info :fn ::await-genes-fn :msg "Awaiting genes load"))
+    (while (not
+            (or (graph-initialized? e genes-graph-name)
+                (not= :timeout (deref genes-promise (* 1000 30) :timeout))))
+      (log/info :fn ::await-genes-fn
+                :msg "Awaiting genes load"
+                :topic kafka-topic))
     (log/info :fn ::await-genes-fn :msg "Genes loaded")
     (reset! genes-atom true))
   e)
@@ -364,9 +367,7 @@
    :subscribe :dosage
    :name :import-dosage-curations
    :backing-store :gv-tdb
-   :init-fn (init-await-genes ::import-dosage-curations-await-genes)
-   :interceptors [await-genes
-                  dosage/add-dosage-model
+   :interceptors [dosage/add-dosage-model
                   dosage/write-dosage-model-to-db]})
 
 (def gene-validity-legacy-report-processor
@@ -488,10 +489,12 @@
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
     (->> (event-store/event-seq r)
+         (take 1)
          (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %))))
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-dosage_2024-02-13.edn.gz"]
     (->> (event-store/event-seq r)
+         (take 1)
          (run! #(p/publish (get-in gv-test-app [:topics :dosage]) %))))
   
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
@@ -553,6 +556,34 @@
   (-> (get-in gv-test-app [:topics :fetch-base-events]) )
 
   ;; / gene names testing
+
+
+  ;; legacy id testing
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (mapv (fn [e] (-> (p/process
+                              (get-in gv-test-app [:processors :gene-validity-transform])
+                              (assoc e
+                                     ::event/completion-promise (promise)
+                                     ::event/format :json
+                                     ::event/skip-publish-effects true
+                                     ::event/skip-local-effects true))
+                             :gene-validity/model
+                             rdf/pp-model)))))
+
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (run! (fn [e] (p/publish (get-in gv-test-app [:topics :gene-validity-gci])
+                        (assoc e ::event/format :json))))))
+
+  (let [gv @(-> gv-test-app :storage :gv-tdb :instance)
+        iri "CGGV:7765e2a4-19e4-4b15-9233-4847606fc501"]
+    (rdf/tx gv
+      (rdf/ld1-> (rdf/resource iri gv) [:cg/website-legacy-id])))
+
+  ;; /legacy id testing
   
   (def eset1
     (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
@@ -893,12 +924,15 @@ select ?s where
   (kafka-admin/configure-kafka-for-app! gv-graphql-endpoint)
 
   (p/start gv-graphql-endpoint)
+  (p/stop gv-graphql-endpoint)
   (-> gv-graphql-endpoint
       :topics
-      :gene-validity-sepio)
+      :gene-validity-sepio
+      :state
+      deref)
+
+
   
-  (let [gv @(-> gv-graphql-endpoint :storage :gv-tdb :instance)]
-    (storage/retrieve-offset gv :gene-validity-sepio))
 
   )
 

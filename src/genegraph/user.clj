@@ -38,11 +38,21 @@
            [java.lang.management GarbageCollectorMXBean ManagementFactory]
            [java.time Instant OffsetDateTime]
            [java.util.zip GZIPInputStream GZIPOutputStream]
+           [ch.qos.logback.classic Logger Level]
+           [org.slf4j LoggerFactory]
            [java.util.concurrent ThreadPoolExecutor Executor LinkedBlockingQueue TimeUnit]))
 
+(comment
+  (.setLevel (LoggerFactory/getLogger Logger/ROOT_LOGGER_NAME) Level/ERROR)
+  (.setLevel (LoggerFactory/getLogger Logger/ROOT_LOGGER_NAME) Level/INFO)
+  (log/info :msg "test")
+  )
+
+
+
 #_(mapv
- #(.getName %)
- (ManagementFactory/getGarbageCollectorMXBeans))
+   #(.getName %)
+   (ManagementFactory/getGarbageCollectorMXBeans))
 
 (defn event-seq-from-directory [directory]
   (let [files (->> directory
@@ -459,9 +469,9 @@
  (kafka/topic->event-file
   {:name :gv-raw-complete
    :type :kafka-reader-topic
-   :kafka-cluster dx-ccloud-dev
-   :kafka-topic "gene_validity_complete"}
-  "/users/tristan/data/genegraph-neo/gv_events_complete_2024-01-12.edn.gz")
+   :kafka-cluster dx-ccloud
+   :kafka-topic "gene_validity_complete-v1"}
+  "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz")
 
 
 
@@ -1467,21 +1477,23 @@ query($gene:String) {
 }"
                                    :variables {:gene "ZEB2"}})})
 
-  (defn genegraph-request [query]
-      (hc/post "https://genegraph.prod.clingen.app/api"
-           {:http-client c
-            :content-type :json
-            :body query}))
+  (defn parse-response [response]
+    (-> response :body (json/read-str :key-fn keyword)))
 
-  (defn local-request [query]
-      (hc/post "http://localhost:8888/api"
-           {:http-client c
-            :content-type :json
-            :body query}))
+  (defn request [query host]
+    (try
+      (parse-response
+       (hc/post host
+                {:http-client c
+                 :content-type :json
+                 :body query}))
+      (catch Exception e {:exception e})))
+
+  (def genegraph-stage "https://genegraph.stage.clingen.app/api")
+  (def genegraph-local "http://localhost:8888/api")
   
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
     (->> (event-store/event-seq r)
-         #_(drop 11)
          (map (fn [x]
                 (try
                   (-> x
@@ -1492,13 +1504,51 @@ query($gene:String) {
                   (catch Exception e nil))))
          (remove #(or (nil? %) (re-find #"null" %)))
          (map (fn [x]
-                (try
-                  {:query x
-                   :response (local-request x)}
-                  (catch Exception e {:exception e}))))
-         (take 1)
+                {:query x
+                 :genegraph-response-fut (future (request x genegraph-stage))
+                 :local-response-fut (future (request x genegraph-local))}))
+         (map (fn [{:keys [genegraph-response-fut local-response-fut] :as x}]
+                {:genegraph @genegraph-response-fut
+                 :local @local-response-fut
+                 :diff (data/diff @genegraph-response-fut @local-response-fut)}))
+         (take 10)
+         (remove (fn [{:keys [diff]}] (and (nil? (first diff))
+                                           (nil? (second diff))))) ; first two nil if same
          (into [])
-         (map #(println (get (json/read-str (:query %)) "query")))))
+         tap>))
+
+  (defn print-query [res]
+    (-> (:query res)
+        (json/read-str :key-fn keyword)
+        :query
+        println))
+
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
+    (->> (event-store/event-seq r)
+         (map (fn [x]
+                (try
+                  (-> x
+                      ::event/value
+                      (subs 59)
+                      edn/read-string
+                      :servlet-request-body)
+                  (catch Exception e nil))))
+         (remove #(or (nil? %) (re-find #"null" %)))
+         (map (fn [x]
+                {:query x
+                 :genegraph-response-fut (future (request x genegraph-stage))
+                 :local-response-fut (future (request x genegraph-local))}))
+         (map (fn [{:keys [genegraph-response-fut local-response-fut query] :as x}]
+                {:genegraph @genegraph-response-fut
+                 :local @local-response-fut
+                 :diff (data/diff @genegraph-response-fut @local-response-fut)
+                 :query query}))
+         (take 10)
+         (remove (fn [{:keys [diff]}] (and (nil? (first diff))
+                                           (nil? (second diff))))) ; first two nil if same
+         (into [])
+         tap>))
+    
 
   
 

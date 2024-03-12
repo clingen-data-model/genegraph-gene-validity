@@ -8,6 +8,8 @@
  "geno" "http://purl.obolibrary.org/obo/GENO_"
  "mondo" "http://purl.obolibrary.org/obo/MONDO_"
  "cg" "http://dataexchange.clinicalgenome.org/terms/"
+ "cgdosage" "http://dx.clinicalgenome.org/entities/"
+ "cggv" "http://dataexchange.clinicalgenome.org/gci/"
  "foaf" "http://xmlns.com/foaf/0.1/"
  "rdfs" "http://www.w3.org/2000/01/rdf-schema#"
  "rdf" "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -175,6 +177,7 @@
   :sepio/DosageScopeAssertion "http://purl.obolibrary.org/obo/SEPIO_0002505"
   :geno/PathogenicForCondition "http://purl.obolibrary.org/obo/GENO_0000840"
   :sepio/DosageSensitivityEvaluationGuideline "http://purl.obolibrary.org/obo/SEPIO_0002002"
-  :sepio/has-ordinal-position "http://purl.obolibrary.org/obo/SEPIO_0002506"})
+  :sepio/has-ordinal-position "http://purl.obolibrary.org/obo/SEPIO_0002506"
+  :mondo/Disease "http://purl.obolibrary.org/obo/MONDO_0000001"})
 
 ;:cg/has-total-actionability-score

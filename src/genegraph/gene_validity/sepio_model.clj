@@ -4,6 +4,7 @@
             [genegraph.framework.event :as event]
             [genegraph.gene-validity.names]
             [clojure.java.io :as io]
+            [clojure.string :as s]
             [io.pedestal.interceptor :as interceptor])
   (:import [java.time Instant]))
 
@@ -90,6 +91,34 @@
    construct-ar-variant-score
    construct-unscoreable-evidence])
 
+(def approval-activity-query
+  (rdf/create-query "select ?activity where
+ { ?activity :bfo/realizes  :sepio/ApproverRole }"))
+
+(def assertion-query
+  (rdf/create-query
+   "select ?assertion where
+ { ?assertion a :sepio/GeneValidityEvidenceLevelAssertion }"))
+
+(defn legacy-website-id
+  "The website uses a version of the assertion ID that incorporates
+  the approval date. Annotate the curation with this ID to retain
+  backward compatibility with the legacy schema."
+  [model]
+  (let [approval-date (some-> (approval-activity-query model)
+                              first
+                              (rdf/ld1-> [:sepio/activity-date])
+                              (s/replace #":" ""))
+        
+        [_
+         assertion-base
+         assertion-id]
+        (some->> (assertion-query model)                                
+                 first
+                 str
+                 (re-find #"^(.*/)([a-z0-9-]*)$"))]
+    (rdf/resource (str assertion-base "assertion_" assertion-id "-" approval-date))))
+
 (defn publish-or-unpublish-role [event]
   (let [res
         (if (seq (is-publish-action-query (:gene-validity/gci-model event)))
@@ -117,7 +146,10 @@
                                 (construct-evidence-connections
                                  (rdf/union
                                   unlinked-model
-                                  gdm-sepio-relationships)))]
+                                  gdm-sepio-relationships))
+                                (add-legacy-website-id
+                                 unlinked-model
+                                 {:legacy_id (legacy-website-id unlinked-model)}))]
     (-> linked-model
         unlink-variant-scores-when-proband-scores-exist
         unlink-segregations-when-no-proband-and-lod-scores)))
