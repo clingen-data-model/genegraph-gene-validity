@@ -14,8 +14,7 @@
 (defn report-date [context args value]
   (some-> (report-date-query (:db context) {:assertion value})
           first
-          :sepio/activity-date
-          first))
+          (rdf/ld1-> [:sepio/activity-date])))
 
 (defn source [context args value]
   (rdf/ld1-> value [[:bfo/has-part :<] :dc/source]))
