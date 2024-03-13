@@ -25,7 +25,7 @@
                                                 [:sepio/has-subject :<]
                                                 :sepio/qualified-contribution
                                                 :sepio/activity-date])
-                               (rdf/ld-> value [[:rdfs/sub-class-of :<] ;; ACTIONABILITY
+                               (rdf/ld-> value [[:rdfs/subClassOf :<] ;; ACTIONABILITY
                                                 [:sepio/is-about-condition :<]
                                                 :sepio/qualified-contribution
                                                 :sepio/activity-date])

@@ -13,7 +13,7 @@
   '[[actionability_genetic_condition :sepio/is-about-gene gene]
     [ac_report :sepio/is-about-condition actionability_genetic_condition]
     [ac_report :rdf/type :sepio/ActionabilityReport]
-    [actionability_genetic_condition :rdfs/sub-class-of disease]])
+    [actionability_genetic_condition :rdfs/subClassOf disease]])
 
 (def actionability-assertion-bgp
   '[[actionability_assertion :sepio/has-subject gene]
@@ -68,7 +68,7 @@
 
 (defn disease-activities [model query-params]
   (reduce (fn [acc [test activity]] 
-            (if (test model query-params) 
+            (if (seq (test model query-params)) 
               (conj acc activity)
               acc))
           #{}

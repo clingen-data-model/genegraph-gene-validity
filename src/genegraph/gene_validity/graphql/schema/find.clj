@@ -58,7 +58,7 @@
 (def query-without-text-search
   (create-query
    "select ?x where {
- ?x a? | :rdfs/sub-class-of * ?type ;
+ ?x a? | :rdfs/subClassOf * ?type ;
  ^ :sepio/has-subject  |  ^ :sepio/has-object | ^ :sepio/has-agent  ?subject .
 }"))
 
@@ -66,7 +66,7 @@
   (create-query
    "select ?x where {
       ?x :jena/query ( :cg/resource ?text ) ;
-      a? | :rdfs/sub-class-of * ?type ;
+      a? | :rdfs/subClassOf * ?type ;
       ^ :sepio/has-subject  |  ^ :sepio/has-object | ^ :sepio/has-agent  ?subject .
     }"))
 

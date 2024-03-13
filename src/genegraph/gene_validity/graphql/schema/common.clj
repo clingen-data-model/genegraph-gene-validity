@@ -6,13 +6,13 @@
   (rdf/create-query
    "select ?evidence where {
     ?statement ( :sepio/has-evidence-line | :sepio/has-evidence-item | :sepio/has-evidence | ( ^ :sepio/has-subject )  ) + ?evidence .
-    ?evidence ( a / :rdfs/sub-class-of * ) ?class }"))
+    ?evidence ( a / :rdfs/subClassOf * ) ?class }"))
 
 (def direct-evidence
   (rdf/create-query
    "select ?evidence where {
     ?statement :sepio/has-evidence ?evidence .
-    ?evidence ( a / :rdfs/sub-class-of * ) ?class }"))
+    ?evidence ( a / :rdfs/subClassOf * ) ?class }"))
 
 ;; Technical debt adopted to meet a specific use case for
 ;; the website and Phil. Would like to transition the site away from

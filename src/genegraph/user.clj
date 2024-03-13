@@ -25,6 +25,7 @@
             [genegraph.gene-validity.versioning :as versioning]
             [genegraph.gene-validity.actionability :as actionability]
             [genegraph.gene-validity.dosage :as dosage]
+            [genegraph.gene-validity.graphql.common.curation :as curation]
             [portal.api :as portal]
             [io.pedestal.log :as log]
             [io.pedestal.interceptor :as interceptor]
@@ -1478,7 +1479,16 @@ query($gene:String) {
                                    :variables {:gene "ZEB2"}})})
 
   (defn parse-response [response]
-    (-> response :body (json/read-str :key-fn keyword)))
+    (walk/postwalk
+     (fn [x]
+       (if (map? x)
+         (update-vals x
+                      (fn [y]
+                        (if (vector? y)
+                          (set y)
+                          y)))
+         x))
+     (-> response :body (json/read-str :key-fn keyword))))
 
   (defn request [query host]
     (try
@@ -1489,8 +1499,16 @@ query($gene:String) {
                  :body query}))
       (catch Exception e {:exception e})))
 
+  (defn request-retries [query host retries]
+    (loop [r (request query host)
+           attempt 0]
+      (if (and (:exception r) (< attempt retries))
+        (recur (request query host) (inc retries))
+        r)))
+
   (def genegraph-stage "https://genegraph.stage.clingen.app/api")
   (def genegraph-local "http://localhost:8888/api")
+
   
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
     (->> (event-store/event-seq r)
@@ -1504,51 +1522,168 @@ query($gene:String) {
                   (catch Exception e nil))))
          (remove #(or (nil? %) (re-find #"null" %)))
          (map (fn [x]
-                {:query x
-                 :genegraph-response-fut (future (request x genegraph-stage))
-                 :local-response-fut (future (request x genegraph-local))}))
-         (map (fn [{:keys [genegraph-response-fut local-response-fut] :as x}]
+                (let [q (string/replace x "legacy_json" "")]
+                  {:query q
+                   :genegraph-response-fut (future (request q genegraph-stage))
+                   :local-response-fut (future (request q genegraph-local))})))
+         (map (fn [{:keys [genegraph-response-fut local-response-fut query] :as x}]
                 {:genegraph @genegraph-response-fut
                  :local @local-response-fut
-                 :diff (data/diff @genegraph-response-fut @local-response-fut)}))
-         (take 10)
+                 :diff (data/diff @genegraph-response-fut @local-response-fut)
+                 :query query}))
+         (take 100)
          (remove (fn [{:keys [diff]}] (and (nil? (first diff))
                                            (nil? (second diff))))) ; first two nil if same
          (into [])
          tap>))
+
 
   (defn print-query [res]
     (-> (:query res)
         (json/read-str :key-fn keyword)
         :query
         println))
+  (def diffs
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
+      (->> (event-store/event-seq r)
+           (map (fn [x]
+                  (try
+                    (-> x
+                        ::event/value
+                        (subs 59)
+                        edn/read-string
+                        :servlet-request-body)
+                    (catch Exception e nil))))
+           (remove #(or (nil? %) (re-find #"null" %)))
+           (map (fn [x]
+                  {:query x
+                   :genegraph-response-fut (future (request x genegraph-stage))
+                   :local-response-fut (future (request x genegraph-local))}))
+           (map (fn [{:keys [genegraph-response-fut local-response-fut query] :as x}]
+                  {:genegraph @genegraph-response-fut
+                   :local @local-response-fut
+                   :diff (data/diff @genegraph-response-fut @local-response-fut)
+                   :query query}))
+           (take 10)
+           (remove (fn [{:keys [diff]}] (and (nil? (first diff))
+                                             (nil? (second diff))))) ; first two nil if same
+           (into [])
+           )))
 
-  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
-    (->> (event-store/event-seq r)
-         (map (fn [x]
-                (try
-                  (-> x
-                      ::event/value
-                      (subs 59)
-                      edn/read-string
-                      :servlet-request-body)
-                  (catch Exception e nil))))
-         (remove #(or (nil? %) (re-find #"null" %)))
-         (map (fn [x]
-                {:query x
-                 :genegraph-response-fut (future (request x genegraph-stage))
-                 :local-response-fut (future (request x genegraph-local))}))
-         (map (fn [{:keys [genegraph-response-fut local-response-fut query] :as x}]
-                {:genegraph @genegraph-response-fut
-                 :local @local-response-fut
-                 :diff (data/diff @genegraph-response-fut @local-response-fut)
-                 :query query}))
-         (take 10)
-         (remove (fn [{:keys [diff]}] (and (nil? (first diff))
-                                           (nil? (second diff))))) ; first two nil if same
-         (into [])
-         tap>))
+  (def querydb
+    (p/init {:type :rocksdb
+             :name :querydb
+             :path "/Users/tristan/data/genegraph-neo/querydb"}))
+
+  (p/start querydb)
+  (p/stop querydb)
+
+  (defn get-offsets [db]
+    (let [offsets (storage/read db :all-offsets)]
+      (if (= ::storage/miss offsets)
+        []
+        offsets)))
+  (.start
+   (Thread.
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
+      (let [db @(:instance querydb)]
+        (log/info :msg "starting events->rocks")
+        (->> (event-store/event-seq r)
+             (map (fn [e] (assoc (select-keys e [::event/offset ::event/timestamp])
+                                 :query (try
+                                          (-> e
+                                              ::event/value
+                                              (subs 59)
+                                              edn/read-string
+                                              :servlet-request-body)
+                                          (catch Exception ex nil)))))
+             (remove #(or (nil? (:query %)) (re-find #"null" (:query %))))
+             (run! (fn [{::event/keys [offset] :as e}]
+                     (storage/write db [:event offset] e))))
+        (log/info :msg "completed events->rocks")))))
+
+  
+
+  (rocksdb/range-get @(:instance querydb) :event)
+  (storage/read @(:instance querydb) [:event 12441491])
+  (def offsets
+    (storage/read @(:instance querydb) :all-offsets))
+
+  (count offsets)
+
+  (defn populate-querydb [host offsets response-key]
+    (let [db @(:instance querydb)]
+      (run! (fn [o]
+              (let [e (storage/read db [:event o])]
+                (when-not (= ::storage/miss e)
+                  (let [q (string/replace (:query e) "legacy_json" "")
+                        r (request-retries q host 10)]
+                    (if (:exception r)
+                      (storage/write db
+                                     [:event o]
+                                     (assoc e response-key :exception))
+                      (storage/write db
+                                     [:event o]
+                                     (assoc e response-key r)))))))
+            offsets)))
+
+  (defn compare-querydb [offsets key-1 key-2]
+    (let [db @(:instance querydb)]
+      (run! (fn [o]
+              (let [e (storage/read db [:event o])
+                    v1 (get e key-1)
+                    v2 (get e key-2)]
+                (when-not (or (= ::storage/miss e)
+                              (= :exception v1)
+                              (= :exception v2))
+                  (storage/write db
+                                 [:event o]
+                                 (assoc e :diff (data/diff v1 v2))))))
+            offsets)))
+  
+  (time (populate-querydb genegraph-local (take 1000 offsets) :local-response))
+  (time (populate-querydb genegraph-stage (take 1000 offsets) :genegraph-response))
+  (time (compare-querydb (take 1000 offsets) :genegraph-response :local-response))
+
+  
+  
+  (let [db @(:instance querydb)
+        discrepancies (->> (take 1000 offsets)
+                           (map #(storage/read db [:event %]))
+                           (remove #(= ::storage/miss %))
+                           (remove (fn [e]
+                                     (let [[d1 d2 _] (:diff e)]
+                                       (and (nil? d1) (nil? d2))))))]
+    (print-query (nth discrepancies 0))
+
+
     
+)
+  
+  (time
+   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
+     (storage/write @(:instance querydb)
+                    :all-offsets
+                    (persistent!
+                     (reduce (fn [offsets e]
+                               (conj! offsets (::event/offset e)))
+                             (transient [])
+                             (event-store/event-seq r))))))
+  
+
+  (defn legacy-json [x]
+    (-> x
+        :data
+        :gene
+        :genetic_conditions
+        first
+        :gene_validity_assertions
+        first
+        :legacy_json))
+  
+  (tap> (data/diff (-> diffs first :diff second legacy-json json/read-str)
+                   (-> diffs first :diff first legacy-json json/read-str)))
+
 
   
 

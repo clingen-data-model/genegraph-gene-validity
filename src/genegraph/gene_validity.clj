@@ -25,7 +25,10 @@
             [io.pedestal.log :as log]
             [clojure.java.io :as io]
             [clojure.set :as set]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            ;; testing
+            [genegraph.gene-validity.graphql.common.curation :as curation]
+            )
   (:import [org.apache.jena.sparql.core Transactional]
            [org.apache.jena.query ReadWrite]
            [org.apache.jena.rdf.model Model]
@@ -525,15 +528,26 @@
          (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
                            {::event/data %}))))
 
-  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+  ;; testing curation activities
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+        disease (rdf/resource "MONDO:0013566")]
     (rdf/tx tdb
-      (-> (storage/read tdb "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
-          .size)))
+      (curation/disease-activities tdb
+                                   {:disease disease})
+      #_(seq
+       ((-> curation/test-disease-for-activity (nth 0) first)
+        tdb
+        {:disease disease}))))
+
+  (map
+   #(str (first %))
+   curation/test-disease-for-activity)
+
   
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
-      (-> (storage/read tdb "https://www.genenames.org/")
-          .size)))
+      (rdf/ld-> (rdf/resource "MONDO:0013566" tdb)
+                [:rdfs/subClassOf :rdf/type])))
 
   (->> (-> "base.edn" io/resource slurp edn/read-string)
        (filter #(= "https://www.genenames.org/" (:name %)))
@@ -574,7 +588,6 @@
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
     (->> (event-store/event-seq r)
-         (take 1)
          (run! (fn [e] (p/publish (get-in gv-test-app [:topics :gene-validity-gci])
                         (assoc e ::event/format :json))))))
 

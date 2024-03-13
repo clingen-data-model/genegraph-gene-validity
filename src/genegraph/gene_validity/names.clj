@@ -20,7 +20,8 @@
  "void" "http://rdfs.org/ns/void"
  "omim" "https://omim.org/entry/"
  "cnt" "http://www.w3.org/2011/content#"
- "hgnc" "https://identifiers.org/hgnc:"})
+ "hgnc" "https://identifiers.org/hgnc:"
+ "cgagent" "http://dataexchange.clinicalgenome.org/agent/"})
 
 
 ;; TODO, switch DC bindings to use prefix and not keyword map.
