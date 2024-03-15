@@ -8,8 +8,7 @@
             [io.pedestal.interceptor :as interceptor])
   (:import [org.apache.jena.rdf.model Model]))
 
-(spec/def :condition/iri #(or (re-matches #"http://purl\.obolibrary\.org/obo/OMIM_\d+" %)
-                              (re-matches #"http://purl\.obolibrary\.org/obo/MONDO_\d+" %)))
+(spec/def :condition/iri #(re-matches #"http://purl\.obolibrary\.org/obo/MONDO_\d+" %))
 
 (spec/def ::iri #(re-find #"^https://actionability\.clinicalgenome\.org/ac" %))
 

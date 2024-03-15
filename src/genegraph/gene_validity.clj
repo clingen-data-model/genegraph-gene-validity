@@ -495,6 +495,23 @@
          (take 1)
          (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %))))
 
+  (def wilms-ac
+    "https://actionability.clinicalgenome.org/ac/Pediatric/api/sepio/doc/AC003")
+
+  
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
+    (->> (event-store/event-seq r)
+         ;;(map event/deserialize)
+         #_(filter (fn [e] (some #(= "HGNC:12796" (:curie %))
+                               (get-in e [::event/data :genes]))))
+         ;; (map #(get-in % [::event/data :iri]))
+         ;; frequencies
+         ;; count
+         ;; last
+         ;; tap>
+         (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %))
+         ))
+
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-dosage_2024-02-13.edn.gz"]
     (->> (event-store/event-seq r)
          (take 1)
