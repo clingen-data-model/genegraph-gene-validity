@@ -2,7 +2,8 @@
   (:require [genegraph.framework.storage.rdf :as rdf]
             [genegraph.gene-validity.graphql.common.curation :as curation]
             [clojure.string :as s]
-            [cheshire.core :as json]))
+            [cheshire.core :as json]
+            [io.pedestal.log :as log]))
 
 ;; CGGV:assertion_43fb4e99-e97a-4d9c-af11-79c2b09ecd2e-2019-07-24T160000.000Z
 ;; CGGCIEX:assertion_10075
@@ -22,13 +23,24 @@
         gciex-assertion))))
 
 ;; Find query. Seems unreasonably complex.
-(defn gene-validity-assertion-query [context args value]
+#_(defn gene-validity-assertion-query [context args value]
   (let [requested-assertion (rdf/resource (:iri args) (:db context))]
     (if (rdf/is-rdf-type? requested-assertion :sepio/GeneValidityEvidenceLevelAssertion)
       requested-assertion
       (or (rdf/ld1-> requested-assertion [[:cg/website-legacy-id :<]])
           (find-newest-gci-curation (:iri args))
           (find-gciex-curation (:iri args))))))
+
+(defn phil-requested-assertion_be-ok-in-iris [iri]
+  (s/replace iri #"assertion_([0-9a-f\-]{36}).*" "$1"))
+
+(defn gene-validity-assertion-query [context args value]
+  (let [requested-assertion (rdf/resource
+                             (phil-requested-assertion_be-ok-in-iris (:iri args))
+                             (:db context))]
+    (if (rdf/is-rdf-type? requested-assertion :sepio/GeneValidityEvidenceLevelAssertion)
+      requested-assertion
+      nil)))
 
 ;; used
 (defn report-date [context args value]

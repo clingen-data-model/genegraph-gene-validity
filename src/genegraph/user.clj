@@ -1648,8 +1648,6 @@ query($gene:String) {
   (time (populate-querydb genegraph-local (take 1000 offsets) :local-response))
   (time (populate-querydb genegraph-stage (take 1000 offsets) :genegraph-response))
   (time (compare-querydb (take 1000 offsets) :genegraph-response :local-response))
-
-  
   
   (let [db @(:instance querydb)
         discrepancies (->> (take 1000 offsets)
@@ -1658,11 +1656,23 @@ query($gene:String) {
                            (remove (fn [e]
                                      (let [[d1 d2 _] (:diff e)]
                                        (and (nil? d1) (nil? d2)))))
-                           (remove #(re-find #"resource\(iri:" (:query %))))]
+                           (remove #(re-find #"resource\(iri:" (:query %)))
+                           #_(filter #(= :exception (:local-response %))))]
     (portal/clear)
     (print-query (nth discrepancies 0))
     (tap> (nth discrepancies 0))
     (count discrepancies))
+  
+  (def new-offsets
+    (s/difference (set (map ::event/offset current-discrepancies-2))
+                  (set (map ::event/offset previous-discrepancies))))
+
+  (tap> (filter #(new-offsets (::event/offset %)) current-discrepancies-2))
+
+
+  (count current-discrepancies-2)
+  (count previous-discrepancies)
+  (count current-discrepancies)
 
 
   (let [db @(:instance querydb)
