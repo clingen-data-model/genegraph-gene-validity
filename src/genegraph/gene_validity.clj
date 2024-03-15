@@ -524,20 +524,40 @@
 
     ;; testing with something smaller and faster first
     (->> (-> "base.edn" io/resource slurp edn/read-string)
-         (filter #(= "http://www.w3.org/1999/02/22-rdf-syntax-ns#" (:name %)))
+         (filter #(= "http://dataexchange.clinicalgenome.org/gci-express" (:name %)))
          (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
                            {::event/data %}))))
 
   ;; testing curation activities
-  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
-        disease (rdf/resource "MONDO:0013566")]
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
-      (curation/disease-activities tdb
-                                   {:disease disease})
-      #_(seq
-       ((-> curation/test-disease-for-activity (nth 0) first)
-        tdb
-        {:disease disease}))))
+      (let [gcex (storage/read tdb "http://dataexchange.clinicalgenome.org/gci-express")]
+        (rdf/pp-model gcex))))
+
+  (def gci-express-to-remove
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+      (rdf/tx tdb
+        ((rdf/create-query "
+select ?report where
+ { ?report a ?type ;
+           :dc/source ?source ;
+           :bfo/has-part / :sepio/has-subject ?proposition .
+   ?proposition :sepio/has-subject ?gene ;
+                :sepio/has-predicate ?moi ;
+                :sepio/has-object ?disease .
+   ?other_proposition :sepio/has-subject ?gene ;
+                      :sepio/has-predicate ?moi ;
+                      :sepio/has-object ?disease .
+   ?other_report :bfo/has-part / :sepio/has-subject ?other_proposition . 
+   FILTER NOT EXISTS { ?other_report :dc/source ?source } .
+}
+
+")
+         tdb
+         {:type :sepio/GeneValidityReport
+          :source :cg/GeneCurationExpress}))))
+
+  (second gci-express-to-remove)
 
   (map
    #(str (first %))

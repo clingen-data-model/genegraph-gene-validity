@@ -10,6 +10,7 @@
  "cg" "http://dataexchange.clinicalgenome.org/terms/"
  "cgdosage" "http://dx.clinicalgenome.org/entities/"
  "cggv" "http://dataexchange.clinicalgenome.org/gci/"
+ "cggciex" "http://dataexchange.clinicalgenome.org/gci-express/"
  "foaf" "http://xmlns.com/foaf/0.1/"
  "rdfs" "http://www.w3.org/2000/01/rdf-schema#"
  "rdf" "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -21,7 +22,10 @@
  "omim" "https://omim.org/entry/"
  "cnt" "http://www.w3.org/2011/content#"
  "hgnc" "https://identifiers.org/hgnc:"
- "cgagent" "http://dataexchange.clinicalgenome.org/agent/"})
+ "cgagent" "http://dataexchange.clinicalgenome.org/agent/"
+ "pmid" "https://pubmed.ncbi.nlm.nih.gov/"
+ "ro" "http://purl.obolibrary.org/obo/RO_"
+ "ga4gh" "https://terms.ga4gh.org/"})
 
 
 ;; TODO, switch DC bindings to use prefix and not keyword map.
@@ -179,6 +183,7 @@
   :geno/PathogenicForCondition "http://purl.obolibrary.org/obo/GENO_0000840"
   :sepio/DosageSensitivityEvaluationGuideline "http://purl.obolibrary.org/obo/SEPIO_0002002"
   :sepio/has-ordinal-position "http://purl.obolibrary.org/obo/SEPIO_0002506"
-  :mondo/Disease "http://purl.obolibrary.org/obo/MONDO_0000001"})
+  :mondo/Disease "http://purl.obolibrary.org/obo/MONDO_0000001"
+  :sepio/DisputingEvidence "http://purl.obolibrary.org/obo/SEPIO_0000404"}) ; gci-ex only
 
 ;:cg/has-total-actionability-score

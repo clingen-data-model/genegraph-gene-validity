@@ -736,6 +736,7 @@
 
   (def p (portal/open))
   (add-tap #'portal/submit)
+  (portal/close)
   (portal/clear)
   (tap> :hello)
   (tap> :hi)
@@ -1484,9 +1485,12 @@ query($gene:String) {
        (if (map? x)
          (update-vals x
                       (fn [y]
-                        (if (vector? y)
-                          (set y)
-                          y)))
+                        (cond (vector? y) (set y)
+                              (= "CG:PediatricActionabilityWorkingGroup" y)
+                              "CGTERMS:PediatricActionabilityWorkingGroup"
+                              (= "CG:AdultActionabilityWorkingGroup" y)
+                              "CGTERMS:AdultActionabilityWorkingGroup"
+                              :else y)))
          x))
      (-> response :body (json/read-str :key-fn keyword))))
 
@@ -1653,12 +1657,28 @@ query($gene:String) {
                            (remove #(= ::storage/miss %))
                            (remove (fn [e]
                                      (let [[d1 d2 _] (:diff e)]
-                                       (and (nil? d1) (nil? d2))))))]
+                                       (and (nil? d1) (nil? d2)))))
+                           (remove #(re-find #"resource\(iri:" (:query %))))]
+    (portal/clear)
     (print-query (nth discrepancies 0))
+    (tap> (nth discrepancies 0))
+    (count discrepancies))
 
 
-    
-)
+  (let [db @(:instance querydb)
+        discrepancies (->> (take 1000 offsets)
+                           (map #(storage/read db [:event %]))
+                           (remove #(= ::storage/miss %))
+                           (remove (fn [e]
+                                     (let [[d1 d2 _] (:diff e)]
+                                       (and (nil? d1) (nil? d2))))))]
+    (->> discrepancies
+         (remove #(re-find #"resource\(iri:" (:query %)))
+         (map :query)
+         frequencies
+         (sort-by second)
+         reverse))
+  
   
   (time
    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
@@ -1725,6 +1745,20 @@ query($gene:String) {
                            :entrez_id
                            (-> v :genes first second :curie hgnc->entrez))]))
             (into {})))))
+
+  (->> gv/gci-express-to-remove
+       (map #(re-find #"\d+$" (str %)))
+       (take 5))
+  
+  (with-open [r (io/reader
+                 "/users/tristan/data/genegraph-neo/gci-express-with-entrez-ids.json")
+              w (io/writer "/users/tristan/data/genegraph-neo/gci-express-with-entrez-ids-pruned.json")]
+    (binding [*out* w]
+      (json/pprint
+       (apply dissoc
+              (json/read r)
+              (map #(re-find #"\d+$" (str %))
+                   gv/gci-express-to-remove))))) 
   )
 
 

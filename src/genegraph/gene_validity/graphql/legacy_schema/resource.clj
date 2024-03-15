@@ -49,7 +49,7 @@
   (rdf/ld1-> value [:skos/altLabel]))
 
 (defn website-display-label [context args value]
-  (rdf/ld1->* value [:cg/website-display-label
+  (rdf/ld1->* value [:cg/website_display_label
                      :skos/prefLabel
                      :rdfs/label
                      :foaf/name]))

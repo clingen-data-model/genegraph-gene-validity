@@ -47,8 +47,8 @@
    "Strong*" :sepio/StrongEvidence
    "Contradictory (disputed)" :sepio/DisputingEvidence
    "Strong" :sepio/StrongEvidence
-   "Contradictory (refuted)" :sepio/RefutingEvidence
-   "Refuted" :sepio/RefutingEvidence
+   "Contradictory (refuted)" :sepio/Refuted
+   "Refuted" :sepio/Refuted
    "Disputed" :sepio/DisputingEvidence})
 
 (defn sop-version-gci-e [report]
