@@ -1656,11 +1656,15 @@ query($gene:String) {
                            (remove (fn [e]
                                      (let [[d1 d2 _] (:diff e)]
                                        (and (nil? d1) (nil? d2)))))
+                           (remove (fn [e]
+                                     (let [[d1 d2 _] (:diff e)]
+                                       (and (get-in d1 [:data :gene :chromosome_band])
+                                            (get-in d1 [:data :gene :chromosome_band])))))
                            (remove #(re-find #"resource\(iri:" (:query %)))
                            #_(filter #(= :exception (:local-response %))))]
     (portal/clear)
-    (print-query (nth discrepancies 0))
-    (tap> (nth discrepancies 0))
+    (print-query (nth discrepancies 17))
+    (tap> (nth discrepancies 17))
     (count discrepancies))
   
   (def new-offsets
@@ -1815,4 +1819,31 @@ query($gene:String) {
 
   (s/difference existing-dosage restored-dosage)
   
+  )
+
+
+;; dealing with dual-publishing gv curations...
+(comment
+  (kafka/topic->event-file
+   {:name :gene-validity-sepio
+    :type :kafka-reader-topic
+    :kafka-cluster dx-ccloud
+    :serialization ::rdf/n-triples
+    :kafka-topic "gene_validity_sepio-v1"}
+   "/users/tristan/data/genegraph-neo/gene-validity-sepio_2024-03-15-2.edn.gz")
+
+  (.start
+   (Thread.
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-validity-sepio_2024-03-15-2.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"c5353aa5-906f-4ec1-8eb9-ddf3cbd0a653" (::event/value %)))
+           (map #(event/deserialize (assoc % ::event/format ::rdf/n-triples)))
+           (run! #(rdf/pp-model (::event/data %)))))))
+
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"c5353aa5-906f-4ec1-8eb9-ddf3cbd0a653" (::event/value %)))
+           (map #(event/deserialize (assoc % ::event/format :json)))
+           (into [])
+           tap>))
   )

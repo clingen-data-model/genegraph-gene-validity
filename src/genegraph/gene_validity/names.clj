@@ -185,6 +185,7 @@
   :sepio/has-ordinal-position "http://purl.obolibrary.org/obo/SEPIO_0002506"
   :mondo/Disease "http://purl.obolibrary.org/obo/MONDO_0000001"
   :sepio/DisputingEvidence "http://purl.obolibrary.org/obo/SEPIO_0000404"
+  :sepio/NoEvidence "http://purl.obolibrary.org/obo/SEPIO_0004508"
   :sepio/ClinGenGeneValidityEvaluationCriteriaSOP4 "http://purl.obolibrary.org/obo/SEPIO_0004092"
   :sepio/ClinGenGeneValidityEvaluationCriteriaSOP5
   "http://purl.obolibrary.org/obo/SEPIO_0004093"}) ; gci-ex only
