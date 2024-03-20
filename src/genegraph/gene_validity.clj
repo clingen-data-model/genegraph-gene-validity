@@ -42,7 +42,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "local"
+    {:platform "stage"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -488,6 +488,11 @@
 
   (p/start gv-test-app)
   (p/stop gv-test-app)
+
+  (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-19"]
+    (->> (event-store/event-seq r)
+         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
+                           %))))
   
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
@@ -610,10 +615,13 @@ select ?report where
 
 
   ;; legacy id testing
-  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
-    (->> (event-store/event-seq r)
-         (take 1)
-         (mapv (fn [e] (-> (p/process
+  (def ttn
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"1ec53217-814e-44b3-a7b7-0f18311c20f3" (::event/value %)))
+           (into [])
+           #_(take 1)
+           #_(mapv (fn [e] (-> (p/process
                               (get-in gv-test-app [:processors :gene-validity-transform])
                               (assoc e
                                      ::event/completion-promise (promise)
@@ -621,12 +629,27 @@ select ?report where
                                      ::event/skip-publish-effects true
                                      ::event/skip-local-effects true))
                              :gene-validity/model
-                             rdf/pp-model)))))
+                             rdf/pp-model))))))
+
+  (count ttn)
+
+
+
+
+
+  (-> (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+                 (assoc (first abcd4)
+                        ::event/completion-promise (promise)
+                        ::event/format :json
+                        ::event/skip-publish-effects true
+                        ::event/skip-local-effects true))
+      :gene-validity/model
+      rdf/pp-model)
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
     (->> (event-store/event-seq r)
          (run! (fn [e] (p/publish (get-in gv-test-app [:topics :gene-validity-gci])
-                        (assoc e ::event/format :json))))))
+                                  (assoc e ::event/format :json))))))
 
   (let [gv @(-> gv-test-app :storage :gv-tdb :instance)
         iri "CGGV:7765e2a4-19e4-4b15-9233-4847606fc501"]
@@ -980,10 +1003,6 @@ select ?s where
       :gene-validity-sepio
       :state
       deref)
-
-
-  
-
   )
 
 (def append-gene-validity-raw
@@ -995,6 +1014,16 @@ select ?s where
               (select-keys e [::event/data ::event/key ::event/value ::event/timestamp])
               ::event/data (::event/value e)
               ::event/topic :gene-validity-complete)))})
+
+(def append-gene-validity-legacy
+  {:name ::append-gene-validity-raw
+   :enter (fn [e]
+            (event/publish
+             e
+             (assoc
+              (select-keys e [::event/data ::event/key ::event/value ::event/timestamp])
+              ::event/data (::event/value e)
+              ::event/topic :gene-validity-legacy-complete)))})
 
 (def gv-appender-def
   {:type :genegraph-app
@@ -1009,13 +1038,29 @@ select ?s where
             {:name :gene-validity-complete
              :type :kafka-producer-topic
              :kafka-cluster :data-exchange
-             :kafka-topic "gene_validity_complete-v1"}}
+             :kafka-topic "gene_validity_complete-v1"}
+            :gene-validity-legacy
+            {:name :gene-validity-legacy
+             :type :kafka-consumer-group-topic
+             :kafka-cluster :data-exchange
+             :kafka-topic "gene_validity"}
+            :gene-validity-legacy-complete
+            {:type :kafka-producer-topic
+             :name :gene-validity-legacy-complete
+             :kafka-topic "gene-validity-legacy-complete-v1"
+             :kafka-cluster :data-exchange}}
    :processors {:gene-validity-appender
                 {:name :gene-validity-appender
                  :type :processor
                  :subscribe :gene-validity-raw
                  :kafka-cluster :data-exchange
-                 :interceptors [append-gene-validity-raw]}}
+                 :interceptors [append-gene-validity-raw]}
+                :gene-validity-legacy-appender
+                {:name :gene-validity-appender
+                 :type :processor
+                 :subscribe :gene-validity-legacy
+                 :kafka-cluster :data-exchange
+                 :interceptors [append-gene-validity-legacy]}}
    :http-servers gv-ready-server})
 
 (comment

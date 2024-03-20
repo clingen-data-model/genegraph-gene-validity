@@ -8,7 +8,7 @@ construct {
   :sepio/has-predicate :sepio/HasEvidenceLevel ;
   :sepio/has-object ?evidencelevel ;
   :sepio/evidence-line-strength ?evidencelevel;
-  :sepio/qualified-contribution ?contribution ;
+  :sepio/qualified-contribution ?contribution , ?publishContribution ;
   :dc/description ?description ;
   :sepio/has-evidence ?autoClassification ;
   :sepio/is-specified-by ?sopVersion ;
@@ -20,7 +20,7 @@ construct {
   :sepio/activity-date ?date .
 
   ?publishContribution :sepio/has-agent ?affiliation ;
-  :bfo/realizes ?publishRole ;
+  :bfo/realizes :cg/PublisherRole ;
   :sepio/activity-date ?publishTime .
 
   ?autoClassification a :sepio/GeneValidityEvidenceLevelAutoClassification ;
@@ -39,8 +39,8 @@ where {
   ?classification a gci:provisionalClassification ;
   # TODO evaluate the effect of removing these
   # Removing to attach unpublish action
-  # gci:approvedClassification true ;
-  # gci:publishClassification true ;
+  gci:approvedClassification true ;
+  gci:publishClassification true ;
   gci:autoClassification ?autoEvidenceLevel ;
   gci:alteredClassification ?alteredEvidenceLevel ;
   gci:classificationPoints ?pointsTree .

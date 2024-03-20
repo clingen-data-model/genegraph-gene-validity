@@ -43,7 +43,8 @@
                    construct-unscoreable-evidence
                    unlink-variant-scores-when-proband-scores-exist
                    unlink-segregations-when-no-proband-and-lod-scores
-                   add-legacy-website-id)
+                   add-legacy-website-id
+                   unpublish-evidence-level-assertion)
 
 (def has-affiliation-query
   "Query that returns a curations full affiliation IRI as a Resource.
@@ -89,7 +90,8 @@
    construct-secondary-contributions
    construct-variant-score
    construct-ar-variant-score
-   construct-unscoreable-evidence])
+   construct-unscoreable-evidence
+   unpublish-evidence-level-assertion])
 
 (def approval-activity-query
   (rdf/create-query "select ?activity where

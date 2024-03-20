@@ -403,7 +403,7 @@
       (map #(assoc %
                    ::event/skip-local-effects true
                    ::event/skip-publish-effects true))
-      (mapv (fn [e] (p/process (get-in gv-setup [:processors :gv-publisher]))))
+      (mapv (fn [e] (p/process (get-in gv-setup [:processors :gv-publisher]) e)))
       tap>)
 
  (p/start gv-setup)
@@ -412,6 +412,9 @@
  (run! #(p/publish (get-in gv-setup [:topics :publish-gv])
                    (prior-event->publish-fn %))
        gv-prior-events)
+
+ (-> (get-in gv-setup [:topics :publish-gv :queue])
+     .size)
                                         ; do all in a min...
  ;; Initialize gv-complete
  
@@ -446,12 +449,26 @@
 
  (def gv-prior-events
    (concat
-    (event-seq-from-directory "/users/tristan/data/genegraph/2023-08-08T1423/events/:gci-raw-snapshot")
-    (event-seq-from-directory "/users/tristan/data/genegraph/2023-08-08T1423/events/:gci-raw-missing-data")))
+    (event-seq-from-directory "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-snapshot")
+    (event-seq-from-directory "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-missing-data")))
+ 
+ (count
+  (event-seq-from-directory "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-snapshot"))
+ 
+ (->> (event-seq-from-directory "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-missing-data")
+      (filter #(re-find #"1ec53217-814e-44b3-a7b7-0f18311c20f3"
+                        (:genegraph.sink.event/value %)))
+      count)
+ 
+ (->> gv-prior-events
+      (remove #(uploaded-keysn (:genegraph.sink.event/key %)))
+      count
+      #_(run! #(p/publish (get-in gv-setup [:topics :publish-gv])
+                          (prior-event->publish-fn %))))
 
- (run! #(p/publish (get-in gv-setup [:topics :publish-gv])
-                   (prior-event->publish-fn %))
-       gv-prior-events)
+ (count gv-prior-events)
+
+ 
 
  (-> gv-prior-events
      first
@@ -465,14 +482,44 @@
    :type :kafka-reader-topic
    :kafka-cluster dx-ccloud
    :kafka-topic "gene_validity_raw"}
-  "/users/tristan/desktop/gv_events_2024-01-12.edn.gz")
+  "/users/tristan/data/genegraph-neo/gv_events_2024-03-18.edn.gz")
+
+ (def uploaded-keysn
+   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-19.edn.gz"]
+     (->> (event-store/event-seq r)
+          (map ::event/key)
+          set)))
+
+ ;; TODO just need to get one fucking more curation to upload
+ 
+ (count uploaded-keysn)
+
+ (def existing-keys
+   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_sepio_2024-03-18.edn.gz"]
+     (->> (event-store/event-seq r)
+          (map ::event/key)
+          set)))
+
+ (count existing-keys)
+ 
+ (time
+  (kafka/topic->event-file
+   {:name :gv-raw-complete
+    :type :kafka-reader-topic
+    :kafka-cluster dx-ccloud
+    :kafka-topic "gene_validity_complete-v1"}
+   "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-19.edn.gz"))
+
+ (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-19.edn.gz"]
+   (->> (event-store/event-seq r)
+        count))
 
  (kafka/topic->event-file
   {:name :gv-raw-complete
    :type :kafka-reader-topic
    :kafka-cluster dx-ccloud
-   :kafka-topic "gene_validity_complete-v1"}
-  "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz")
+   :kafka-topic "gene_validity_sepio-v1"}
+  "/users/tristan/data/genegraph-neo/gv_sepio_2024-03-18.edn.gz")
 
 
 
@@ -1785,18 +1832,86 @@ query($gene:String) {
          (filter #(.isFile %))
          (map #(-> % slurp
                    edn/read-string
-                   :genegraph.sink.event/value))
-         first
-         tap>))
+                   :genegraph.sink.event/value
+                   :id))
+         set))
 
   (count (s/difference gv-legacy-neo4j gv-legacy-on-stream))
+  
   (def gv-legacy-on-stream
     (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-validity-legacy_2024-02-20.edn.gz"]
       (->> (event-store/event-seq r)
-           (map #(-> % event/deserialize ::event/data))
-           tap>)))
+           (map #(-> % event/deserialize ::event/data :iri))
+           set)))
 
   gv-legacy-on-stream
+  (count gv-legacy-neo4j)
+
+  ;; old NEO4J recovered files to on-stream format
+  ;; id -> iri
+  ;; score-string -> scoreJson
+
+  (defn publish-legacy-curation-fn [e]
+    (let [id (get-in e [::event/data :id])
+          score-string (get-in e [::event/data :score-string])]
+      (event/publish e
+                     {::event/topic :gene-validity-legacy-complete-v1
+                      ::event/key id
+                      ::event/data {:iri id
+                                    :scoreJson score-string}})))
+  
+
+  (->> "/Users/tristan/data/genegraph-neo/neo4j-legacy-events"
+       io/file
+       file-seq
+       (filter #(.isFile %))
+       (map #(-> %
+                 slurp
+                 edn/read-string
+                 (s/rename-keys {:genegraph.sink.event/value ::event/data})))
+       (remove #(gv-legacy-on-stream (get-in % [::event/data :id])))
+       (run! #(p/process (get-in upload-gv-neo4j
+                                   [:processors :publish-legacy-curations-processor])
+                           %)))
+  
+  (def publish-legacy-curation
+    (interceptor/interceptor
+     {:name ::publish-legacy-curation
+      :enter (fn [e] (publish-legacy-curation-fn e))}))
+
+  (def upload-gv-neo4j-def
+    {:type :genegraph-app
+     :kafka-clusters {:data-exchange dx-ccloud}
+     :topics {:gene-validity-legacy-complete-v1
+              {:type :kafka-producer-topic
+               :name :gene-validity-legacy-complete-v1
+               :kafka-topic "gene-validity-legacy-complete-v1"
+               :serialization :json
+               :kafka-cluster :data-exchange}}
+     :processors {:publish-legacy-curations-processor
+                  {:type :processor
+                   :name :publish-legacy-curations-processor
+                   :kafka-cluster :data-exchange
+                   :interceptors [publish-legacy-curation]}}})
+
+  (def upload-gv-neo4j (p/init upload-gv-neo4j-def))
+  (p/start upload-gv-neo4j)
+  (p/stop upload-gv-neo4j)
+  (kafka-admin/configure-kafka-for-app! upload-gv-neo4j)
+
+  (kafka/topic->event-file
+   {:type :kafka-reader-topic
+    :name :gene-validity-legacy-complete-v1
+    :kafka-topic "gene-validity-legacy-complete-v1"
+    :serialization :json
+    :kafka-cluster dx-ccloud}
+   "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-19"
+   )
+
+
+  (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-19"]
+    (->> (event-store/event-seq r)
+         count))
   
   )
 
