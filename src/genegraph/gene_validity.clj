@@ -975,7 +975,7 @@ select ?s where
              :type :kafka-reader-topic
              :kafka-cluster :data-exchange
              :serialization :json
-             :kafka-topic "gene_validity"} ; <<change to complete topic when exists>>
+             :kafka-topic "gene-validity-legacy-complete-v1"} ; <<change to complete topic when exists>>
             :base-data
             {:name :base-data
              :type :kafka-reader-topic
