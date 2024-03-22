@@ -382,10 +382,37 @@
    :interceptors [legacy-report/add-gci-legacy-model
                   legacy-report/write-gci-legacy-model-to-db]})
 
+(def query-timer-interceptor
+  (interceptor/interceptor
+   {:name ::query-timer-interceptor
+    :enter (fn [e] (assoc e ::start-time (.toEpochMilli (Instant/now))))
+    :leave (fn [e] (assoc e ::end-time (.toEpochMilli (Instant/now))))}))
+
+(defn publish-result-fn [e]
+  (log/info :fn ::publish-result-fn
+            :duration (- (::end-time e) (::start-time e)))
+  (event/publish
+   e
+   {::event/data {:start-time (::start-time e)
+                  :end-time (::end-time e)
+                  :query (get-in e [:request :body])
+                  :remote-addr (get-in e [:request :remote-addr])
+                  :response-size (count (get-in e [:response :body]))
+                  :status (get-in e [:response :status])}
+    ::event/key (::start-time e)
+    ::event/topic :api-log}))
+
+(def publish-result-interceptor
+  (interceptor/interceptor
+   {:name ::publish-result
+    :leave (fn [e] (publish-result-fn e))}))
+
 (def graphql-api
   {:name :graphql-api
    :type :processor
    :interceptors [#_lacinia-pedestal/initialize-tracing-interceptor
+                  publish-result-interceptor
+                  query-timer-interceptor
                   jena-transaction-interceptor
                   lacinia-pedestal/json-response-interceptor
                   lacinia-pedestal/error-response-interceptor
@@ -416,8 +443,8 @@
      ["/ide" :get (lacinia-pedestal/graphiql-ide-handler {})
       :route-name ::lacinia-pedestal/graphql-ide]
      ["/ready"
-     :get (fn [_] {:status 200 :body "server is ready"})
-     :route-name ::readiness]
+      :get (fn [_] {:status 200 :body "server is ready"})
+      :route-name ::readiness]
      ["/live"
       :get (fn [_] {:status 200 :body "server is live"})
       :route-name ::liveness])
@@ -445,6 +472,25 @@
     ::http/join? false
     ::http/secure-headers nil}})
 
+(defn log-api-event-fn [e]
+  (let [data (::event/data e)]
+    (log/info :fn ::log-api-event
+              :duration (- (:end-time data) (:start-time data))
+              :response-size (:response-size data)
+              :status (:status data))
+    e))
+
+(def log-api-event
+  (interceptor/interceptor
+   {:name ::log-api-event
+    :enter (fn [e] (log-api-event-fn e))}))
+
+(def read-api-log
+  {:name :read-api-log
+   :type :processor
+   :subscribe :api-log
+   :interceptors [log-api-event]})
+
 (def gv-test-app-def
   {:type :genegraph-app
    :topics {:gene-validity-gci
@@ -467,6 +513,9 @@
              :type :simple-queue-topic}
             :gene-validity-legacy
             {:name :gene-validity-legacy
+             :type :simple-queue-topic}
+            :api-log
+            {:name :api-log
              :type :simple-queue-topic}}
    :storage {:gv-tdb gv-tdb
              :gene-validity-version-store gene-validity-version-store}
@@ -477,6 +526,7 @@
                 :graphql-api graphql-api
                 :import-actionability-curations import-actionability-curations
                 :import-dosage-curations import-dosage-curations
+                :read-api-log read-api-log
                 :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
    :http-servers gv-http-server})
 
@@ -970,6 +1020,12 @@ select ?s where
              :kafka-cluster :data-exchange
              :serialization ::rdf/n-triples
              :kafka-topic "gene_validity_sepio-v1"}
+            :api-log
+            {:name :api-log
+             :type :kafka-producer-topic
+             :kafka-cluster :data-exchange
+             :serialization :edn
+             :kafka-topic "genegraph_api_log-v1"}
             :dosage
             {:name :dosage
              :type :kafka-reader-topic
