@@ -1657,8 +1657,9 @@ query($gene:String) {
       (reset! res
               (->> query-result
                    (filter #(< 5000 (:time %)))
-                   (take 1)
+                   #_(take 1)
                    (mapv #(execute-and-time-query (:query %))))))))
+  (tap> @res)
   (-> (filter #(< 5000 (:time %)) query-result) second :result-size)
   (defn print-query [res]
     (-> (:query res)

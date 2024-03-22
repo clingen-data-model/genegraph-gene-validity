@@ -93,9 +93,11 @@
   (rdf/create-query [:project ['ac_report]
                  (cons :bgp actionability-bgp)]))
 
+
+
 (def actionability-assertions-for-genetic-condition
   (rdf/create-query [:project ['actionability_assertion]
-                 (cons :bgp actionability-assertion-bgp)]))
+                     (cons :bgp actionability-assertion-bgp)]))
 
 (def gene-validity-with-sort-bgp
   (conj gene-validity-bgp
@@ -104,7 +106,6 @@
         ['disease :rdfs/label 'disease_label]
         ['validity_assertion :sepio/qualified-contribution 'gv_contrib]
         ['gv_contrib :bfo/realizes 'role]
-        ;;['gv_contrib :sepio/activity-date 'report_date]
         ['gv_contrib :sepio/has-agent 'affiliation]
         ))
 
@@ -141,12 +142,6 @@
 
 (def gene-validity-curations
   (rdf/create-query [:project ['validity_assertion]
-                 (cons :bgp gene-validity-with-sort-bgp)]))
-
-(def gene-validity-curations
-  (rdf/create-query [:project ['validity_assertion]
-                 ;; Adding the reference to the assertion, plus any fields likely
-                 ;; to be used as sort values
                  (cons :bgp gene-validity-with-sort-bgp)]))
 
 (def dosage-sensitivity-curations-for-genetic-condition
@@ -207,9 +202,39 @@
     {:curation_list (query model query-params)
      :count count}))
 
+(def gene-validity-affiliation-query
+  (rdf/create-query
+   '[:project [validity_assertion]
+     [:bgp 
+      [gv_contrib :sepio/has-agent affiliation]
+      [gv_contrib :bfo/realizes role]
+      [validity_assertion :sepio/qualified-contribution gv_contrib]
+      [validity_assertion :sepio/has-subject validity_proposition]
+      [validity_proposition :sepio/has-subject gene]
+      [validity_proposition :sepio/has-object disease]
+      [validity_proposition :rdf/type :sepio/GeneValidityProposition]
+      [gene :skos/prefLabel gene_label]
+      [disease :rdfs/label disease_label]]]))
+
+(defn gene-validity-curations-for-affiliation
+  "Optimized for listing associated with affiliations"
+  [context args value]
+  (let [model (:db context)
+        params (-> args
+                   (select-keys [:limit :offset :sort])
+                   (assoc :distinct true))
+        query-params (-> (select-keys args [:role])
+                         (merge value)
+                         add-role-to-params
+                         add-text-to-params
+                         (assoc ::rdf/params params))
+        count (gene-validity-affiliation-query model (assoc query-params ::rdf/params {:type :count}))]
+    {:curation_list (gene-validity-affiliation-query model query-params)
+     :count count}))
+
 (def validity-curated-genes
   (rdf/create-query [:project ['gene]
-                 (cons :bgp gene-validity-with-sort-bgp)]))
+                     (cons :bgp gene-validity-with-sort-bgp)]))
 
 (def validity-curated-genes-text-search
   (rdf/create-query [:project ['gene]
