@@ -33,6 +33,7 @@
            [org.apache.jena.query ReadWrite]
            [org.apache.jena.rdf.model Model]
            [org.apache.kafka.clients.producer KafkaProducer]
+           [java.time Instant]
            [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors])
   (:gen-class))
 
@@ -585,11 +586,22 @@ select ?report where
    #(str (first %))
    curation/test-disease-for-activity)
 
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (let [t1 (Instant/now)
+            result (curation/disease-activities
+                    tdb
+                    {:disease (rdf/resource "MONDO:0011783" tdb)})]
+        {:time (- (.toEpochMilli (Instant/now)) (.toEpochMilli t1))
+         :result result})))
   
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
-      (rdf/ld-> (rdf/resource "MONDO:0013566" tdb)
-                [:rdfs/subClassOf :rdf/type])))
+      (time
+       (curation/activities
+        tdb
+        {:gene (rdf/resource "NCBIGENE:144568" tdb)}))))
+  (int (/ (* 62 2200) 1000))
 
   (->> (-> "base.edn" io/resource slurp edn/read-string)
        (filter #(= "https://www.genenames.org/" (:name %)))

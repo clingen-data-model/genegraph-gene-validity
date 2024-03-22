@@ -27,10 +27,12 @@
     [dosage_report :bfo/has-part dosage_assertion]])
 
 (def gene-dosage-disease-bgp
-  (conj gene-dosage-bgp
-        '[dosage_report :bfo/has-part dosage_assertion]
-        '[dosage_assertion :sepio/has-subject dosage_proposition]
-        '[dosage_proposition :sepio/has-object disease]))
+  '[[dosage_proposition :sepio/has-object disease]
+    [dosage_assertion :sepio/has-subject dosage_proposition]
+    [dosage_report :bfo/has-part dosage_assertion]
+    [dosage_report :iao/is-about gene]
+    [gene :rdf/type :so/Gene]
+    [dosage_report :rdf/type :sepio/GeneDosageReport]])
 
 (def curation-bgps
   [gene-validity-bgp
@@ -56,9 +58,19 @@
           #{}
           test-resource-for-activity))
 
+(def gene-validity-disease-bgp
+  '[[validity_proposition :sepio/has-object disease]
+    [validity_proposition :rdf/type :sepio/GeneValidityProposition]])
+
+(def actionability-disease-bgp
+  '[[actionability_genetic_condition :rdfs/subClassOf disease]
+    [actionability_genetic_condition :sepio/is-about-gene gene]
+    [ac_report :sepio/is-about-condition actionability_genetic_condition]
+    [ac_report :rdf/type :sepio/ActionabilityReport]])
+
 (def pattern-disease-curation-activities
-  [[gene-validity-bgp :GENE_VALIDITY]
-   [actionability-bgp :ACTIONABILITY]
+  [[gene-validity-disease-bgp :GENE_VALIDITY]
+   [actionability-disease-bgp :ACTIONABILITY]
    [gene-dosage-disease-bgp :GENE_DOSAGE]])
 
 (def test-disease-for-activity

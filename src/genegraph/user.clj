@@ -1604,7 +1604,7 @@ query($gene:String) {
            (filter #(re-find #"limit: null" %))
            (take 1000)
            frequencies
-           (filter (fn [[k v]] (< 20 v)))
+           #_(filter (fn [[k v]] (< 20 v)))
            (mapv key)
            #_(mapv #(hc/post genegraph-local
                              {:http-client c
@@ -1615,26 +1615,51 @@ query($gene:String) {
                         :query
                         println)))))
 
+  (count big-queries)
   (run! #(-> %
-            (json/read-str :key-fn keyword)
-            :query
-            println)
+             (json/read-str :key-fn keyword)
+             :query
+             println)
         big-queries)
+
+  (defn execute-and-time-query [q]
+    (try
+      (let [tp (Instant/now)
+            result (hc/post genegraph-local
+                              {:http-client c
+                               :content-type :json
+                               :body q})]
+        {:query q
+         :result-size (count (:body result))
+         :time (- (.toEpochMilli (Instant/now))
+                  (.toEpochMilli tp))})
+      (catch Exception e :exception)))
 
   (mapv #(let [tp (Instant/now)]
            (try
-             (hc/post genegraph-local
-                      {:http-client c
-                       :content-type :json
-                       :body %})
-             (- (.toEpochMilli (Instant/now))
-                (.toEpochMilli tp))
+             (let [result (hc/post genegraph-local
+                                   {:http-client c
+                                    :content-type :json
+                                    :body %})]
+               {:query %
+                :result-size (count (:body result))
+                :time (- (.toEpochMilli (Instant/now))
+                         (.toEpochMilli tp))})
              (catch Exception e :exception)))
         big-queries)
-
+  (def query-result *1)
+  (tap> query-result)
   (println "hi")
-
-
+  (def res (atom nil))
+  (Thread/startVirtualThread
+   (fn []
+     (time
+      (reset! res
+              (->> query-result
+                   (filter #(< 5000 (:time %)))
+                   (take 1)
+                   (mapv #(execute-and-time-query (:query %))))))))
+  (-> (filter #(< 5000 (:time %)) query-result) second :result-size)
   (defn print-query [res]
     (-> (:query res)
         (json/read-str :key-fn keyword)

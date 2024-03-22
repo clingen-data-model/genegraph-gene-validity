@@ -17,12 +17,9 @@
       gene
       (first (filter #(rdf/is-rdf-type? % :so/Gene) (rdf/ld-> gene [[:owl/sameAs :<]]))))))
 
-;; TODO CURATION -- examine in context of queries in curation
 (defn genes [context args value]
   (curation/genes-for-resolver context args value))
 
-;; used
-;; TODO CURATION -- examine in context of queries in curation
 (defn curation-activities [context args value]
   (curation/activities (:db context) {:gene value}))
 
