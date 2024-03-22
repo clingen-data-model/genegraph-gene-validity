@@ -1056,7 +1056,7 @@ select ?s where
                  :kafka-cluster :data-exchange
                  :interceptors [append-gene-validity-raw]}
                 :gene-validity-legacy-appender
-                {:name :gene-validity-appender
+                {:name :gene-validity-legacy-appender
                  :type :processor
                  :subscribe :gene-validity-legacy
                  :kafka-cluster :data-exchange

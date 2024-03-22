@@ -46,10 +46,9 @@
 (defn report-date [context args value]
   (rdf/ld1-> value [:sepio/qualified-contribution :sepio/activity-date]))
 
-;; find list query
-;; TODO CURATION
+
 (defn gene-validity-curations [context args value]
-  (curation/gene-validity-curations-for-resolver args value))
+  (curation/gene-validity-curations-for-resolver context args value))
 
 ;; used
 (defn classification [context args value]

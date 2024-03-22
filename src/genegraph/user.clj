@@ -37,7 +37,8 @@
   (:import [java.io File PushbackReader FileOutputStream BufferedWriter FileInputStream BufferedReader]
            [java.nio ByteBuffer]
            [java.lang.management GarbageCollectorMXBean ManagementFactory]
-           [java.time Instant OffsetDateTime]
+           [java.time Instant OffsetDateTime Duration]
+           [java.time.temporal ChronoUnit]
            [java.util.zip GZIPInputStream GZIPOutputStream]
            [ch.qos.logback.classic Logger Level]
            [org.slf4j LoggerFactory]
@@ -1588,6 +1589,51 @@ query($gene:String) {
          (into [])
          tap>))
 
+  (def big-queries
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/genegraph-logs_2024-02-14.edn.gz"]
+      (->> (event-store/event-seq r)
+           (map (fn [x]
+                  (try
+                    (-> x
+                        ::event/value
+                        (subs 59)
+                        edn/read-string
+                        :servlet-request-body)
+                    (catch Exception e nil))))
+           (remove nil?)
+           (filter #(re-find #"limit: null" %))
+           (take 1000)
+           frequencies
+           (filter (fn [[k v]] (< 20 v)))
+           (mapv key)
+           #_(mapv #(hc/post genegraph-local
+                             {:http-client c
+                              :content-type :json
+                              :body %}))
+           #_(run! #(-> %
+                        (json/read-str :key-fn keyword)
+                        :query
+                        println)))))
+
+  (run! #(-> %
+            (json/read-str :key-fn keyword)
+            :query
+            println)
+        big-queries)
+
+  (mapv #(let [tp (Instant/now)]
+           (try
+             (hc/post genegraph-local
+                      {:http-client c
+                       :content-type :json
+                       :body %})
+             (- (.toEpochMilli (Instant/now))
+                (.toEpochMilli tp))
+             (catch Exception e :exception)))
+        big-queries)
+
+  (println "hi")
+
 
   (defn print-query [res]
     (-> (:query res)
@@ -1662,6 +1708,12 @@ query($gene:String) {
 
   (count offsets)
 
+  (let [db @(:instance querydb)]
+    (->> (take 100000 offsets)
+         (map #(:query (storage/read db [:event %])))
+         (filter nil?)
+         count))
+  
   (defn populate-querydb [host offsets response-key]
     (let [db @(:instance querydb)]
       (run! (fn [o]
@@ -1936,16 +1988,22 @@ query($gene:String) {
   
   )
 
-
 ;; dealing with dual-publishing gv curations...
 (comment
+  (+ 1 1)
+  
   (kafka/topic->event-file
    {:name :gene-validity-sepio
     :type :kafka-reader-topic
     :kafka-cluster dx-ccloud
     :serialization ::rdf/n-triples
     :kafka-topic "gene_validity_sepio-v1"}
-   "/users/tristan/data/genegraph-neo/gene-validity-sepio_2024-03-15-2.edn.gz")
+   "/users/tristan/data/genegraph-neo/gene-validity-sepio_2024-03-21.edn.gz")
+
+  (println "hi")
+  (event-store/event-with-reader [r "/users/tristan/data/genegraph-neo/gene-validity-sepio_2024-03-21.edn.gz"]
+      (->> (event-store/event-seq r)
+           count))
 
   (.start
    (Thread.
