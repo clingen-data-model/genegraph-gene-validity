@@ -43,8 +43,8 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "stage"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
+    {:platform "dev"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
      :local-data-path "data/"}
     {}))
 
@@ -346,6 +346,7 @@
    {:name ::await-genes
     :enter (fn [e] (await-genes-fn e))}))
 
+
 (def import-gv-curations
   {:type :processor
    :subscribe :gene-validity-sepio
@@ -399,7 +400,7 @@
                   :remote-addr (get-in e [:request :remote-addr])
                   :response-size (count (get-in e [:response :body]))
                   :status (get-in e [:response :status])}
-    ::event/key (::start-time e)
+    ::event/key (str (::start-time e))
     ::event/topic :api-log}))
 
 (def publish-result-interceptor
@@ -493,6 +494,7 @@
 
 (def gv-test-app-def
   {:type :genegraph-app
+   :kafka-clusters {:data-exchange data-exchange}
    :topics {:gene-validity-gci
             {:name :gene-validity-gci
              :type :simple-queue-topic}
@@ -516,23 +518,29 @@
              :type :simple-queue-topic}
             :api-log
             {:name :api-log
-             :type :simple-queue-topic}}
+             :type :kafka-producer-topic
+             :kafka-cluster :data-exchange
+             :serialization :edn
+             :kafka-topic "genegraph_api_log-v1"}}
    :storage {:gv-tdb gv-tdb
              :gene-validity-version-store gene-validity-version-store}
    :processors {:gene-validity-transform transform-processor
                 :fetch-base-file fetch-base-processor
                 :import-base-file import-base-processor
                 :import-gv-curations import-gv-curations
-                :graphql-api graphql-api
+                :graphql-api (assoc graphql-api
+                                    :kafka-cluster
+                                    :data-exchange)
                 :import-actionability-curations import-actionability-curations
                 :import-dosage-curations import-dosage-curations
-                :read-api-log read-api-log
+                #_#_:read-api-log read-api-log
                 :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
    :http-servers gv-http-server})
 
 (comment
   (def gv-test-app
     (p/init gv-test-app-def))
+  (kafka-admin/configure-kafka-for-app! gv-test-app)
 
   (-> (get-in gv-test-app [:processors :import-gv-curations])
       ::event/metadata)
