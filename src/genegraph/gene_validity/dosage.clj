@@ -313,11 +313,12 @@
     :enter (fn [e] (add-dosage-model-fn e))}))
 
 (defn write-dosage-model-to-db-fn [event]
-  (when-let [model (::model event)]
+  (if-let [model (::model event)]
     (event/store event
                  :gv-tdb
                  (base-iri (::event/data event))
-                 model)))
+                 model)
+    event))
 
 (def write-dosage-model-to-db
   (interceptor/interceptor
