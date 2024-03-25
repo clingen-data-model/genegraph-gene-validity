@@ -17,7 +17,7 @@
 
 ;; used
 (defn synonyms [context args value]
-  (rdf/ld-> value [:oboInOwl/has-exact-synonym]))
+  (rdf/ld-> value [:oboinowl/hasExactSynonym]))
 
 ;; used
 (defn last-curated-date [context args value]

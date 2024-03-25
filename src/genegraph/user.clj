@@ -1788,8 +1788,8 @@ query($gene:String) {
                            (remove #(re-find #"resource\(iri:" (:query %)))
                            #_(filter #(= :exception (:local-response %))))]
     (portal/clear)
-    (print-query (nth discrepancies 17))
-    (tap> (nth discrepancies 17))
+    (print-query (nth discrepancies 0))
+    (tap> (nth discrepancies 0))
     (count discrepancies))
   
   (def new-offsets

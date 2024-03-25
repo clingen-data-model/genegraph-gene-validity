@@ -457,6 +457,9 @@
     {:type :Disease,
      :description "Disease associated with this curation",
      :resolve :gene-validity/disease},
+    :description
+    {:type String
+     :resolve :resource/description}
     :attributed_to
     {:type :Agent,
      :description "Primary affiliation responsible for this curation",

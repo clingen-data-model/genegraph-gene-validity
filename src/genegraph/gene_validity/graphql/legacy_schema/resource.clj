@@ -1,6 +1,7 @@
 (ns genegraph.gene-validity.graphql.legacy-schema.resource
   (:require [genegraph.framework.storage.rdf :as rdf]
-            [io.pedestal.log :as log]))
+            [io.pedestal.log :as log])
+  (:refer-clojure :exclude [type]))
 
 (comment
   (genegraph.framework.storage.rdf.types/model
@@ -41,6 +42,12 @@
 (defn curie [context args value]
   (rdf/curie (or (rdf/ld1-> value [:cg/website-legacy-id])
                  value)))
+
+(defn description [context args value]
+  (rdf/ld1-> value [:dc/description]))
+
+(defn type [context args value]
+  (rdf/ld1-> value [:rdf/type]))
 
 (defn label [context args value]
   (rdf/ld1->* value [:skos/prefLabel :rdfs/label :foaf/name]))

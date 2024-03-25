@@ -25,7 +25,8 @@
  "cgagent" "http://dataexchange.clinicalgenome.org/agent/"
  "pmid" "https://pubmed.ncbi.nlm.nih.gov/"
  "ro" "http://purl.obolibrary.org/obo/RO_"
- "ga4gh" "https://terms.ga4gh.org/"})
+ "ga4gh" "https://terms.ga4gh.org/"
+ "oboinowl" "http://www.geneontology.org/formats/oboInOwl#"})
 
 
 ;; TODO, switch DC bindings to use prefix and not keyword map.
@@ -164,6 +165,7 @@
   :stato/lower-confidence-limit "http://purl.obolibrary.org/obo/STATO_0000315"
   :stato/upper-confidence-limit "http://purl.obolibrary.org/obo/STATO_0000314"
   :iao/is-about "http://purl.obolibrary.org/obo/IAO_0000136"
+  :iao/definition "http://purl.obolibrary.org/obo/IAO_0000115"
   :sepio/ActionabilityAssertion "http://purl.obolibrary.org/obo/SEPIO_0003003"
   :sepio/GeneDosageReport "http://purl.obolibrary.org/obo/SEPIO_0002015"
   :sepio/ActionabilityReport "http://purl.obolibrary.org/obo/SEPIO_0003010"

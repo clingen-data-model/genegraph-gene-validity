@@ -19,7 +19,7 @@
                                              :git/sha "d99b09c"}
                      djblue/portal {:mvn/version "0.51.1"}
                      io.github.nextjournal/clerk {:mvn/version "0.15.957"}}
-        #_#_:jvm-opts ["-agentpath:/Applications/YourKit-Java-Profiler-2023.9.app/Contents/Resources/bin/mac/libyjpagent.dylib=disablestacktelemetry,exceptions=disable,delay=10000"
+        :jvm-opts ["-agentpath:/Applications/YourKit-Java-Profiler-2024.3.app/Contents/Resources/bin/mac/libyjpagent.dylib=disablestacktelemetry,exceptions=disable,delay=10000"
                    "-XX:+UseZGC" "-XX:+ZGenerational" "-XX:MaxRAMPercentage=50"]}}
 
  :jvm-opts ["-XX:+UseZGC" "-XX:+ZGenerational" "-XX:MaxRAMPercentage=75"]

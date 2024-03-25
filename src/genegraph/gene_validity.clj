@@ -43,8 +43,8 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "dev"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
+    {:platform "local"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
 
@@ -494,7 +494,6 @@
 
 (def gv-test-app-def
   {:type :genegraph-app
-   :kafka-clusters {:data-exchange data-exchange}
    :topics {:gene-validity-gci
             {:name :gene-validity-gci
              :type :simple-queue-topic}
@@ -518,22 +517,17 @@
              :type :simple-queue-topic}
             :api-log
             {:name :api-log
-             :type :kafka-producer-topic
-             :kafka-cluster :data-exchange
-             :serialization :edn
-             :kafka-topic "genegraph_api_log-v1"}}
+             :type :simple-queue-topic}}
    :storage {:gv-tdb gv-tdb
              :gene-validity-version-store gene-validity-version-store}
    :processors {:gene-validity-transform transform-processor
                 :fetch-base-file fetch-base-processor
                 :import-base-file import-base-processor
                 :import-gv-curations import-gv-curations
-                :graphql-api (assoc graphql-api
-                                    :kafka-cluster
-                                    :data-exchange)
+                :graphql-api graphql-api
                 :import-actionability-curations import-actionability-curations
                 :import-dosage-curations import-dosage-curations
-                #_#_:read-api-log read-api-log
+                :read-api-log read-api-log
                 :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
    :http-servers gv-http-server})
 
@@ -612,8 +606,9 @@
   ;; testing curation activities
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
-      (let [gcex (storage/read tdb "http://dataexchange.clinicalgenome.org/gci-express")]
-        (rdf/pp-model gcex))))
+      (let [curation
+            (storage/read tdb "http://dataexchange.clinicalgenome.org/gci/51e15eba-7b16-4244-912e-2265259e0459")]
+        (rdf/pp-model curation))))
 
   (def gci-express-to-remove
     (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
@@ -685,10 +680,10 @@ select ?report where
 
 
   ;; legacy id testing
-  (def ttn
+  (def abcb4
     (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
       (->> (event-store/event-seq r)
-           (filter #(re-find #"1ec53217-814e-44b3-a7b7-0f18311c20f3" (::event/value %)))
+           (filter #(re-find #"51e15eba-7b16-4244-912e-2265259e0459" (::event/value %)))
            (into [])
            #_(take 1)
            #_(mapv (fn [e] (-> (p/process
@@ -701,7 +696,16 @@ select ?report where
                              :gene-validity/model
                              rdf/pp-model))))))
 
-  (count ttn)
+  (->> abcb4
+       (mapv (fn [e] (-> (p/process
+                          (get-in gv-test-app [:processors :gene-validity-transform])
+                          (assoc e
+                                 ::event/completion-promise (promise)
+                                 ::event/format :json
+                                 ::event/skip-publish-effects true
+                                 ::event/skip-local-effects true))
+                         :gene-validity/model
+                         rdf/pp-model))))
 
 
 
@@ -807,7 +811,7 @@ select ?s where
            count
            #_(into []))))
 
-    (def sepio-events-path "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz")
+  (def sepio-events-path "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz")
 
   (event-store/with-event-reader [r sepio-events-path]
     (->>(event-store/event-seq r)
@@ -823,6 +827,11 @@ select ?s where
   (event-store/with-event-reader [r sepio-events-path]
     (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %)
           (map #(assoc % ::event/format ::rdf/n-triples) (event-store/event-seq r))))
+  
+  (event-store/with-event-reader [r sepio-events-path]
+    (->> (event-store/event-seq r)
+         first
+         ::event/key))
   
   )
 
@@ -1060,7 +1069,7 @@ select ?s where
              :kafka-topic "genegraph-base-v1"}}
    :processors {:import-gv-curations import-gv-curations
                 :import-base-file import-base-processor
-                :graphql-api graphql-api
+                :graphql-api (assoc graphql-api :kafka-cluster :data-exchange)
                 :import-actionability-curations import-actionability-curations
                 :import-dosage-curations import-dosage-curations
                 :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
@@ -1074,11 +1083,13 @@ select ?s where
 
   (p/start gv-graphql-endpoint)
   (p/stop gv-graphql-endpoint)
-  (-> gv-graphql-endpoint
-      :topics
-      :gene-validity-sepio
-      :state
-      deref)
+  (->> (-> gv-graphql-endpoint
+           :topics
+           :dosage
+           :event-status-queue
+           .size)
+       #_(filter #(realized? (::event/completion-promise %)))
+       #_count)
   )
 
 (def append-gene-validity-raw
@@ -1118,6 +1129,7 @@ select ?s where
             :gene-validity-legacy
             {:name :gene-validity-legacy
              :type :kafka-consumer-group-topic
+             :kafka-consumer-group (:kafka-consumer-group env)
              :kafka-cluster :data-exchange
              :kafka-topic "gene_validity"}
             :gene-validity-legacy-complete

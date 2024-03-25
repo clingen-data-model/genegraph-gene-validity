@@ -96,7 +96,9 @@
    :resource/curie resource/curie,
    :resource/iri resource/iri,
    :resource/label resource/label,
-   :resource/website-display-label resource/website-display-label
+   :resource/website-display-label resource/website-display-label,
+   :resource/description resource/description
+   #_#_:resource/type resource/type
    ;; queries
    :gene/gene-query gene/gene-query
    :gene/genes gene/genes

@@ -138,6 +138,29 @@
          (or (some-> event ::event/timestamp Instant/ofEpochMilli str)
              "2020-05-01")))
 
+(def proband-score-cap-query
+  (rdf/create-query "select ?x where { ?x a :sepio/ProbandScoreCapEvidenceLine }"))
+
+(defn add-proband-scores
+  "Return model contributing the evidence line scores for proband scores
+  when needed in SOPv8 + autosomal recessive variants. May need a mechanism
+  to feed a new cap in, should that change."
+  [model]
+  (let [proband-evidence-lines (proband-score-cap-query model)]
+    (rdf/union
+     model
+     (rdf/statements->model
+      (map
+       #(vector 
+         %
+         :sepio/evidence-line-strength-score
+         (min 3                ; current cap on sop v8+ proband scores
+              (reduce
+               + 
+               (rdf/ld-> % [:sepio/has-evidence
+                            :sepio/evidence-line-strength-score]))))
+       proband-evidence-lines)))))
+
 (defn gci-data->sepio-model [gci-data params]
   (let [gci-model (rdf/union gci-data gdm-sepio-relationships)
         unlinked-model (apply
@@ -153,6 +176,7 @@
                                  unlinked-model
                                  {:legacy_id (legacy-website-id unlinked-model)}))]
     (-> linked-model
+        add-proband-scores
         unlink-variant-scores-when-proband-scores-exist
         unlink-segregations-when-no-proband-and-lod-scores)))
 
