@@ -17,6 +17,7 @@
             [genegraph.gene-validity.base :as base]
             [genegraph.gene-validity.graphql.schema :as gql-schema]
             [genegraph.gene-validity.versioning :as versioning]
+            [genegraph.gene-validity.graphql.response-cache :as response-cache]
             [com.walmartlabs.lacinia.pedestal2 :as lacinia-pedestal]
             [com.walmartlabs.lacinia.pedestal.internal :as internal]
             [com.walmartlabs.lacinia.resolve :as resolve]
@@ -37,6 +38,13 @@
            [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors])
   (:gen-class))
 
+;; stuff to make sure Lacinia recieves an executor which can bookend
+;; database transactions
+
+(def direct-executor
+  (reify Executor
+    (^void execute [this ^Runnable r]
+     (.run r))))
 
 ;; Environments
 
@@ -51,21 +59,28 @@
 (def local-env
   (case (or (:platform admin-env) (System/getenv "GENEGRAPH_PLATFORM"))
     "local" {:fs-handle {:type :file :base "data/base/"}
-             :local-data-path "data/"}
+             :local-data-path "data/"
+             :graphql-schema (fn []
+                               (gql-schema/merged-schema
+                                {:executor direct-executor}))}
     "dev" (assoc (env/build-environment "522856288592" ["dataexchange-genegraph"])
                  :function (System/getenv "GENEGRAPH_FUNCTION")
                  :kafka-user "User:2189780"
                  :kafka-consumer-group "genegraph-gene-validity-dev-13"
                  :fs-handle {:type :gcs
                              :bucket "genegraph-framework-dev"}
-                 :local-data-path "/data")
+                 :local-data-path "/data"
+                 :graphql-schema (gql-schema/merged-schema
+                                  {:executor direct-executor}))
     "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
                    :kafka-consumer-group "genegraph-gene-validity-stage-1"
                    :fs-handle {:type :gcs
                                :bucket "genegraph-gene-validity-stage-1"}
-                   :local-data-path "/data")
+                   :local-data-path "/data"
+                   :graphql-schema (gql-schema/merged-schema
+                                    {:executor direct-executor}))
     {}))
 
 (def env
@@ -153,20 +168,12 @@
              (.end (get-in context [::storage/storage :gv-tdb]))
              context)}))
 
-;; stuff to make sure Lacinia recieves an executor which can bookend
-;; database transactions
 
-(def direct-executor
-  (reify Executor
-    (^void execute [this ^Runnable r]
-     (.run r))))
 
 (defn init-graphql-processor [p]
   (assoc-in p
             [::event/metadata ::schema]
-            (fn []
-              (gql-schema/merged-schema
-               {:executor direct-executor}))))
+            (:graphql-schema env)))
 
 (defn fn->schema [fn-or-schema]
   (if (fn? fn-or-schema)
@@ -294,6 +301,11 @@
    :name :gv-tdb
    :path (str (:local-data-path env) "/gv-tdb")})
 
+(def response-cache-db
+  {:type :rocksdb
+   :name :response-cache-db
+   :path (str (:local-data-path env) "/response-cache-db")})
+
 (def import-base-processor
   {:name :import-base-file
    :type :processor
@@ -301,7 +313,8 @@
    :backing-store :gv-tdb
    :interceptors [publish-record-to-system-topic
                   base/read-base-data
-                  base/store-model]})
+                  base/store-model
+                  response-cache/invalidate-cache]})
 
 (def genes-graph-name
   "https://www.genenames.org/")
@@ -355,7 +368,8 @@
    :init-fn (init-await-genes ::import-gv-curations-await-genes)
    :interceptors [await-genes
                   replace-hgnc-with-ncbi-gene
-                  store-curation]})
+                  store-curation
+                  response-cache/invalidate-cache]})
 
 (def import-actionability-curations
   {:type :processor
@@ -365,7 +379,8 @@
    :init-fn (init-await-genes ::import-actionability-curations-await-genes)
    :interceptors [await-genes
                   actionability/add-actionability-model
-                  actionability/write-actionability-model-to-db]})
+                  actionability/write-actionability-model-to-db
+                  response-cache/invalidate-cache]})
 
 (def import-dosage-curations
   {:type :processor
@@ -373,7 +388,8 @@
    :name :import-dosage-curations
    :backing-store :gv-tdb
    :interceptors [dosage/add-dosage-model
-                  dosage/write-dosage-model-to-db]})
+                  dosage/write-dosage-model-to-db
+                  response-cache/invalidate-cache]})
 
 (def gene-validity-legacy-report-processor
   {:type :processor
@@ -399,7 +415,8 @@
                   :query (get-in e [:request :body])
                   :remote-addr (get-in e [:request :remote-addr])
                   :response-size (count (get-in e [:response :body]))
-                  :status (get-in e [:response :status])}
+                  :status (get-in e [:response :status])
+                  :handled-by (::event/handled-by e)}
     ::event/key (str (::start-time e))
     ::event/topic :api-log}))
 
@@ -414,10 +431,11 @@
    :interceptors [#_lacinia-pedestal/initialize-tracing-interceptor
                   publish-result-interceptor
                   query-timer-interceptor
+                  lacinia-pedestal/body-data-interceptor
+                  response-cache/response-cache
                   jena-transaction-interceptor
                   lacinia-pedestal/json-response-interceptor
                   lacinia-pedestal/error-response-interceptor
-                  lacinia-pedestal/body-data-interceptor
                   lacinia-pedestal/graphql-data-interceptor
                   lacinia-pedestal/status-conversion-interceptor
                   lacinia-pedestal/missing-query-interceptor
@@ -478,6 +496,7 @@
     (log/info :fn ::log-api-event
               :duration (- (:end-time data) (:start-time data))
               :response-size (:response-size data)
+              :handled-by (:handled-by data)
               :status (:status data))
     e))
 
@@ -519,7 +538,8 @@
             {:name :api-log
              :type :simple-queue-topic}}
    :storage {:gv-tdb gv-tdb
-             :gene-validity-version-store gene-validity-version-store}
+             :gene-validity-version-store gene-validity-version-store
+             :response-cache-db response-cache-db}
    :processors {:gene-validity-transform transform-processor
                 :fetch-base-file fetch-base-processor
                 :import-base-file import-base-processor
@@ -541,6 +561,10 @@
 
   (p/start gv-test-app)
   (p/stop gv-test-app)
+
+  (storage/write @(get-in gv-test-app [:storage :response-cache-db :instance])
+                 :last-update
+                 (System/currentTimeMillis))
 
   (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-19"]
     (->> (event-store/event-seq r)
@@ -702,7 +726,7 @@ select ?report where
                           (assoc e
                                  ::event/completion-promise (promise)
                                  ::event/format :json
-                                 ::event/skip-publish-effects true
+                                 #_#_#_#_::event/skip-publish-effects true
                                  ::event/skip-local-effects true))
                          :gene-validity/model
                          rdf/pp-model))))

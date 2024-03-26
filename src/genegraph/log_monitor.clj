@@ -154,6 +154,7 @@
                                [:log-record "1711397874600"]))
         local (future (request-retries q genegraph-local 10))
         remote (future (request-retries q genegraph-stage 10))]
+    (portal/clear)
     (tap> (data/diff @local @remote)))
   
   )
