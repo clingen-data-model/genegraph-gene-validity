@@ -1054,7 +1054,8 @@ select ?s where
 (def gv-graphql-endpoint-def
   {:type :genegraph-app
    :kafka-clusters {:data-exchange data-exchange}
-   :storage {:gv-tdb gv-tdb}
+   :storage {:gv-tdb gv-tdb
+             :response-cache-db response-cache-db}
    :topics {:gene-validity-sepio
             {:name :gene-validity-sepio
              :type :kafka-reader-topic
