@@ -51,7 +51,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "local"
+    {:platform "stage"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -239,6 +239,8 @@
 (def gene-validity-version-store
   {:name :gene-validity-version-store
    :type :rocksdb
+   :snapshot-handle (assoc (:fs-handle env)
+                           :path "genegraph-version-store-snapshot-v1.tar.lz4")
    :path (str (:local-data-path env) "version-store")})
 
 (defn report-transform-errors-fn [event]
@@ -299,6 +301,7 @@
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
+   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v1.nq.gz")
    :path (str (:local-data-path env) "/gv-tdb")})
 
 (def response-cache-db
@@ -544,7 +547,9 @@
                 :fetch-base-file fetch-base-processor
                 :import-base-file import-base-processor
                 :import-gv-curations import-gv-curations
-                :graphql-api graphql-api
+                :graphql-api (assoc graphql-api
+                                    ::event/metadata
+                                    {::response-cache/skip-response-cache true})
                 :import-actionability-curations import-actionability-curations
                 :import-dosage-curations import-dosage-curations
                 :read-api-log read-api-log
@@ -566,10 +571,11 @@
                  :last-update
                  (System/currentTimeMillis))
 
-  (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-19"]
+  (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-29"]
     (->> (event-store/event-seq r)
-         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
-                           %))))
+         count
+         #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
+                             %))))
   
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
@@ -596,7 +602,9 @@
 
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-dosage_2024-02-13.edn.gz"]
     (->> (event-store/event-seq r)
-         (take 1)
+         (filter #(re-find #"ISCA-6195" (::event/value %)))
+         #_(take-last 1)
+         #_(take 1)
          (run! #(p/publish (get-in gv-test-app [:topics :dosage]) %))))
   
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
@@ -985,7 +993,8 @@ select ?s where
             :gene-validity-sepio
             {:name :gene-validity-sepio
              :type :simple-queue-topic}}
-   :storage {:gene-validity-version-store gene-validity-version-store}
+   :storage {:gene-validity-version-store
+             (assoc gene-validity-version-store :load-snapshot true)}
    :processors {:gene-validity-transform transform-processor
                 :gene-validity-reporter
                 {:name :gene-validity-reporter
@@ -1054,7 +1063,7 @@ select ?s where
 (def gv-graphql-endpoint-def
   {:type :genegraph-app
    :kafka-clusters {:data-exchange data-exchange}
-   :storage {:gv-tdb gv-tdb
+   :storage {:gv-tdb (assoc gv-tdb :load-snapshot true)
              :response-cache-db response-cache-db}
    :topics {:gene-validity-sepio
             {:name :gene-validity-sepio
@@ -1203,14 +1212,98 @@ select ?s where
    "graphql-endpoint" gv-graphql-endpoint-def
    "appender" gv-appender-def})
 
+(defn store-snapshots! [app]
+  (->> (:storage app)
+       (map val)
+       (filter :snapshot-handle)
+       (run! storage/store-snapshot)))
+
+(comment
+  (time 
+   (store-snapshots! gv-test-app))
+  )
+
+(defn periodically-store-snapshots
+  "Start a thread that will create and store snapshots for
+   storage instances that need/support it. Adds a variable jitter
+   so that similarly configured apps don't try to backup at the same time."
+  [app period-hours run-atom]
+  (let [period-ms (* 60 60 1000 period-hours)]
+    (Thread/startVirtualThread
+     (fn []
+       (while @run-atom
+         (Thread/sleep period-ms)
+         (try
+           (store-snapshots! app)
+           (catch Exception e
+             (log/error :fn ::periodically-store-snapshots
+                        :exception e))))))))
+
 (defn -main [& args]
   (log/info :fn ::-main
             :msg "starting genegraph"
             :function (:function env))
-  (let [app (p/init (get genegraph-function (:function env) gv-test-app-def))]
+  (let [app (p/init (get genegraph-function (:function env) gv-test-app-def))
+        run-atom (atom true)]
     (.addShutdownHook (Runtime/getRuntime)
                       (Thread. (fn []
                                  (log/info :fn ::-main
                                            :msg "stopping genegraph")
+                                 (reset! run-atom false)
                                  (p/stop app))))
-    (p/start app)))
+    (p/start app)
+    (periodically-store-snapshots app 6 run-atom)))
+
+
+(def populate-local-graphql-endpoint-def
+  {:type :genegraph-app
+   :kafka-clusters {:data-exchange data-exchange}
+   :storage {:gv-tdb gv-tdb
+             :response-cache-db response-cache-db}
+   :topics {:gene-validity-sepio
+            {:name :gene-validity-sepio
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization ::rdf/n-triples
+             :kafka-topic "gene_validity_sepio-v1"}
+            :dosage
+            {:name :dosage
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :json
+             :kafka-topic "gene_dosage_raw"}
+            :actionability
+            {:name :actionability
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :json
+             :kafka-topic "actionability"}
+            :gene-validity-legacy
+            {:name :gene-validity-legacy
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :json
+             :kafka-topic "gene-validity-legacy-complete-v1"} ; <<change to complete topic when exists>>
+            :base-data
+            {:name :base-data
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :edn
+             :kafka-topic "genegraph-base-v1"}}
+   :processors {:import-gv-curations import-gv-curations
+                :import-base-file import-base-processor
+                :import-actionability-curations import-actionability-curations
+                :import-dosage-curations import-dosage-curations
+                :import-gene-validity-legacy-report gene-validity-legacy-report-processor}})
+
+(comment
+  (def populate-local-graphql-endpoint
+    (p/init populate-local-graphql-endpoint-def))
+  (-> populate-local-graphql-endpoint
+      :topics
+      :gene-validity-sepio
+      :state
+      deref)
+  (p/start populate-local-graphql-endpoint)
+  (p/stop populate-local-graphql-endpoint)
+  )

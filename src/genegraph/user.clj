@@ -515,12 +515,14 @@
    (->> (event-store/event-seq r)
         count))
 
+
+ ;; download inputs for local gql endpoint
  (kafka/topic->event-file
   {:name :gv-raw-complete
    :type :kafka-reader-topic
    :kafka-cluster dx-ccloud
    :kafka-topic "gene_validity_sepio-v1"}
-  "/users/tristan/data/genegraph-neo/gv_sepio_2024-03-18.edn.gz")
+  "/users/tristan/data/genegraph-neo/gv_sepio_2024-03-27.edn.gz")
 
 
 
@@ -1983,7 +1985,7 @@ query($gene:String) {
     :kafka-topic "gene-validity-legacy-complete-v1"
     :serialization :json
     :kafka-cluster dx-ccloud}
-   "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-19"
+   "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-29"
    )
 
 
@@ -2045,4 +2047,10 @@ query($gene:String) {
            (map #(event/deserialize (assoc % ::event/format :json)))
            (into [])
            tap>))
+  )
+
+
+(comment
+  (string/replace "Complex Neurodevelopemental Disorder"
+                  " " "")
   )

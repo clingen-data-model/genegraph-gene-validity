@@ -19,7 +19,8 @@
     (log/info :duration (- (:end-time data) (:start-time data))
               :status (:status data)
               :response-size (:response-size data)
-              :start-time (:start-time data))
+              :start-time (:start-time data)
+              :handled-by (:handled-by data))
     (event/store e
                  :log-store
                  [:log-record (str (:start-time data))]
@@ -151,7 +152,7 @@
                     ::local-response)
 
   (let [q (:query (storage/read @(get-in log-monitor [:storage :log-store :instance])
-                               [:log-record "1711397874600"]))
+                               [:log-record "1711548454782"]))
         local (future (request-retries q genegraph-local 10))
         remote (future (request-retries q genegraph-stage 10))]
     (portal/clear)
@@ -230,7 +231,7 @@
         first
         p        :legacy_json))
   
-  (tap> (data/diff (-> diffs first :diff second legacy-json json/read-str)
+pp  (tap> (data/diff (-> diffs first :diff second legacy-json json/read-str)
                    (-> diffs first :diff first legacy-json json/read-str)))
 
 

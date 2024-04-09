@@ -209,7 +209,8 @@
                               rdf/resource)
         phenotype-field (if (= 1 dosage) :customfield_10200 :customfield_10201)
         phenotype (get-in curation [:fields phenotype-field])
-        object (or (when phenotype (rdf/resource phenotype))
+        ;; Bad IRIs prevent Jena restore. Remove spaces where an IRI is concerned
+        object (or (when phenotype (rdf/resource (s/replace phenotype " " "")))
                    legacy-mondo
                    (rdf/resource "http://purl.obolibrary.org/obo/MONDO_0000001"))
         iri (proposition-iri curation dosage)]

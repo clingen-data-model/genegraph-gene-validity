@@ -5,7 +5,7 @@
             [io.pedestal.log :as log])
   (:import [java.time Instant]))
 
-(defn enter-response-cache [event]
+(defn retrieve-cached-result [event]
   (let [db (get-in event [::storage/storage :response-cache-db])
         cache-result (storage/read
                       db
@@ -20,7 +20,12 @@
              :response (:response cache-result)
              ::event/handled-by :response-cache))))
 
-(defn leave-response-cache [event]
+(defn enter-response-cache [event]
+  (if (::skip-response-cache event)
+    event
+    (retrieve-cached-result event)))
+
+(defn store-response-in-cache [event]
   (let [current-time (System/currentTimeMillis)]
     (if (and (::query-timer event)
              (< 10 (- current-time (::query-timer event))))
@@ -30,6 +35,11 @@
                    {:response (:response event)
                     :calculated-at current-time})
       event)))
+
+(defn leave-response-cache [event]
+  (if (::skip-response-cache event)
+    event
+    (store-response-in-cache event)))
 
 (def response-cache
   (interceptor/interceptor
