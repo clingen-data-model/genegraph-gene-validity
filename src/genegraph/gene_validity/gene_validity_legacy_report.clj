@@ -10,7 +10,9 @@
 
 (defn json-content-node [report iri]
   [[iri :rdf/type :cnt/ContentAsText]
-   [iri :cnt/chars (json/write-str report)]])
+   [iri :cnt/chars (if (string? (:scoreJson report)) ; covers legacy neo4j reports
+                     (:scoreJson report)
+                     (json/write-str report))]])
 
 (defn gci-legacy-report-to-triples [report]
   (let [root-version (str gci-root (-> report :iri))
