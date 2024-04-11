@@ -836,7 +836,7 @@ select ?report where
       (->> ((rdf/create-query "select ?x where { ?x a :sepio/GeneDosageReport }") tdb)
            count
            #_(into []))))
-  ;; TODO pick up here, dosage score ordinals not working
+
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
       (into []
@@ -1120,7 +1120,7 @@ select ?s where
              :type :kafka-reader-topic
              :kafka-cluster :data-exchange
              :serialization :json
-             :kafka-topic "gene-validity-legacy-complete-v1"} ; <<change to complete topic when exists>>
+             :kafka-topic "gene-validity-legacy-complete-v1"} 
             :base-data
             {:name :base-data
              :type :kafka-reader-topic
@@ -1309,7 +1309,7 @@ select ?s where
              :type :kafka-reader-topic
              :kafka-cluster :data-exchange
              :serialization :json
-             :kafka-topic "gene-validity-legacy-complete-v1"} ; <<change to complete topic when exists>>
+             :kafka-topic "gene-validity-legacy-complete-v1"}
             :base-data
             {:name :base-data
              :type :kafka-reader-topic

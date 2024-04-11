@@ -42,36 +42,26 @@
  order by desc(?activitydate)
  limit 1"))
 
-;; used
 (defn last-curated-date [context args value]
   (some-> (most-recent-curation-for-gene (:db context) {:gene value})
           first
           (rdf/ld1-> [:sepio/activity-date])))
 
-;; used
 (defn hgnc-id [context args value]
   (->> (rdf/ld-> value [:owl/sameAs])
        (filter #(= (str (rdf/ld1-> % [:dc/source])) "https://www.genenames.org"))
        first
        rdf/curie))
 
-;; used
-;; TODO CURATION -- examine in context of queries in curation
 (defn conditions [context args value]
   (curation/curated-genetic-conditions-for-gene (:db context) {:gene value}))
 
-;; TODO CURATION -- examine in context of queries in curation
 (def dosage-query
   (rdf/create-query
    [:project ['dosage_report] (cons :bgp curation/gene-dosage-bgp)]))
 
-dosage-query
-
-;; used
-;; TODO CURATION -- examine in context of queries in curation
 (defn dosage-curation [context args value]
   (first (dosage-query (:db context) {::rdf/params {:limit 1} :gene value})))
 
-;; used
 (defn chromosome-band [context args value]
   (rdf/ld1-> value [:so/chromosome-band]))

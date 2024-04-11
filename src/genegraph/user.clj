@@ -438,8 +438,6 @@
  (p/start gv-setup)
  (p/stop gv-setup)
 
- ;; todo start here, bootstrap gv events on local topic
-
  (-> gv
      :topics
      :gv-complete
@@ -491,7 +489,6 @@
           (map ::event/key)
           set)))
 
- ;; TODO just need to get one fucking more curation to upload
  
  (count uploaded-keysn)
 
@@ -1347,7 +1344,6 @@
   (-> resource io/resource slurp edn/read-string))
 
 
-;; TODO pickup here
 ;; analyzing historic queries to see how much of the legacy schema needs to be updated
 ;; for genegraph 2
 ;; attempting also to parse the query and see if I can get the fields out as structured data

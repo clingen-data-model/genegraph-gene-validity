@@ -10,8 +10,6 @@
 (defn mode-of-inheritance [context args value]
   (:mode-of-inheritance value))
 
-;; TODO CURATION
-;; all the curation
 (defn actionability-curations [context args value]
   (curation/actionability-curations-for-genetic-condition (:db context) value))
 

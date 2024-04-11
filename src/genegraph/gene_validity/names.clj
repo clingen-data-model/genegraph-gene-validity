@@ -28,8 +28,6 @@
  "ga4gh" "https://terms.ga4gh.org/"
  "oboinowl" "http://www.geneontology.org/formats/oboInOwl#"})
 
-
-;; TODO, switch DC bindings to use prefix and not keyword map.
 (add-keyword-mappings
  {:bfo/realizes "http://purl.obolibrary.org/obo/BFO_0000055"
   :bfo/has-part "http://purl.obolibrary.org/obo/BFO_0000051"

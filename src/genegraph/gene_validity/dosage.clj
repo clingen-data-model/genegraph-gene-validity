@@ -94,9 +94,6 @@
   [s]
   (s/replace s #"(\d\d)(\d\d)$" "$1:$2"))
 
-;; TODO Java chokes on parsing a time offset without a colon, and is unwilling
-;; to construct a ISO_INSTANT from the format parsed below. Need to either hack
-;; a colon in the datetime or understand better how Java is doing things
 (defn- time-str-offset-to-instant [s]
   ;; "2018-03-27T09:55:41.000-0400"
   (->> s
@@ -134,7 +131,6 @@
                                      [build
                                       (subs chr 3)])]
       [iri [[iri :rdf/type :geno/SequenceFeatureLocation]
-            ;; TODO reference sequence should be a resource
             [iri :geno/has-reference-sequence (rdf/resource reference-sequence)]
             [iri :geno/has-interval interval-iri]
             [interval-iri :rdf/type :geno/SequenceInterval]

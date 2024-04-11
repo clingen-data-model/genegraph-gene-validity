@@ -40,9 +40,6 @@
 (defn curation-activities [context args value]
   (curation/disease-activities (:db context) {:disease value}))
 
-;; TODO see whether this is used; will need to do some work in curation.clj
-;; to fix this up if so
-;; initial indications is that this is not being used.
 (defn diseases [context args value]
   (curation/diseases-for-resolver context args value))
 

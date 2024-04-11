@@ -62,8 +62,6 @@
                         :path [:skos/is-in-scheme]}
             :subject_of {:type '(list :Statement)
                          :description "Assertions (or propositions) that have this resource as a subject (or object)."
-                         ;; TODO implement as path when inverse; optional paths are done
-                         ;; in Jena mapping. Exists as function for now.
                          :resolve subject-of}}})
 
 (def generic-resource
