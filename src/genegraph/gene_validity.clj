@@ -51,8 +51,8 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "stage"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
+    {:platform "dev"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
      :local-data-path "data/"}
     {}))
 
@@ -82,6 +82,8 @@
                    :graphql-schema (gql-schema/merged-schema
                                     {:executor direct-executor}))
     {}))
+
+(tap> local-env)
 
 (def env
   (merge local-env admin-env))
@@ -409,8 +411,6 @@
     :leave (fn [e] (assoc e ::end-time (.toEpochMilli (Instant/now))))}))
 
 (defn publish-result-fn [e]
-  (log/info :fn ::publish-result-fn
-            :duration (- (::end-time e) (::start-time e)))
   (event/publish
    e
    {::event/data {:start-time (::start-time e)
@@ -516,6 +516,7 @@
 
 (def gv-test-app-def
   {:type :genegraph-app
+   :kafka-clusters {:data-exchange data-exchange}
    :topics {:gene-validity-gci
             {:name :gene-validity-gci
              :type :simple-queue-topic}
@@ -539,7 +540,13 @@
              :type :simple-queue-topic}
             :api-log
             {:name :api-log
-             :type :simple-queue-topic}}
+               :type :simple-queue-topic}
+            #_{:name :api-log
+             :type :kafka-producer-topic
+             :kafka-cluster :data-exchange
+             :serialization :edn
+             :create-producer true
+             :kafka-topic "genegraph_api_log-v1"}}
    :storage {:gv-tdb gv-tdb
              :gene-validity-version-store gene-validity-version-store
              :response-cache-db response-cache-db}
@@ -571,13 +578,31 @@
                  :last-update
                  (System/currentTimeMillis))
 
+  (def first-gv-legacy
+    (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-29"]
+      (->> (event-store/event-seq r)
+           first
+           #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
+                               %)))))
+
+  (def last-gv-legacy
+    (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-29"]
+      (->> (event-store/event-seq r)
+           last
+           #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
+                               %)))))
+
+
+  
+  (-> last-gv-legacy
+      event/deserialize
+      tap>)
+  
   (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-29"]
     (->> (event-store/event-seq r)
-         count
-         #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
+         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
                              %))))
   
-
   (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
     (->> (event-store/event-seq r)
          (take 1)
@@ -1076,6 +1101,7 @@ select ?s where
              :type :kafka-producer-topic
              :kafka-cluster :data-exchange
              :serialization :edn
+             :create-producer true
              :kafka-topic "genegraph_api_log-v1"}
             :dosage
             {:name :dosage
@@ -1103,7 +1129,7 @@ select ?s where
              :kafka-topic "genegraph-base-v1"}}
    :processors {:import-gv-curations import-gv-curations
                 :import-base-file import-base-processor
-                :graphql-api (assoc graphql-api :kafka-cluster :data-exchange)
+                :graphql-api graphql-api
                 :import-actionability-curations import-actionability-curations
                 :import-dosage-curations import-dosage-curations
                 :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
