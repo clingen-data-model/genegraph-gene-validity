@@ -2057,3 +2057,443 @@ select ?t where
             (query tdb))))
 
   )
+
+
+;; moving test-app stuff to here
+
+(def read-api-log
+  {:name :read-api-log
+   :type :processor
+   :subscribe :api-log
+   :interceptors [log-api-event]})
+
+(def gv-test-app-def
+  {:type :genegraph-app
+   :kafka-clusters {:data-exchange data-exchange}
+   :topics {:gene-validity-gci
+            {:name :gene-validity-gci
+             :type :simple-queue-topic}
+            :gene-validity-sepio
+            {:name :gene-validity-sepio
+             :type :simple-queue-topic}
+            :fetch-base-events
+            {:name :fetch-base-events
+             :type :simple-queue-topic}
+            :base-data
+            {:name :base-data
+             :type :simple-queue-topic}
+            :actionability
+            {:name :actionability
+             :type :simple-queue-topic}
+            :dosage
+            {:name :dosage
+             :type :simple-queue-topic}
+            :gene-validity-legacy
+            {:name :gene-validity-legacy
+             :type :simple-queue-topic}
+            :api-log
+            {:name :api-log
+             :type :simple-queue-topic}}
+   :storage {:gv-tdb gv-tdb
+             :gene-validity-version-store gene-validity-version-store
+             :response-cache-db response-cache-db}
+   :processors {:gene-validity-transform transform-processor
+                :fetch-base-file fetch-base-processor
+                :import-base-file import-base-processor
+                :import-gv-curations import-gv-curations
+                :graphql-api (assoc graphql-api
+                                    ::event/metadata
+                                    {::response-cache/skip-response-cache true})
+                :import-actionability-curations import-actionability-curations
+                :import-dosage-curations import-dosage-curations
+                :read-api-log read-api-log
+                :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
+   :http-servers gv-http-server})
+
+(comment
+  (def gv-test-app
+    (p/init gv-test-app-def))
+  (kafka-admin/configure-kafka-for-app! gv-test-app)
+
+  (-> (get-in gv-test-app [:processors :import-gv-curations])
+      ::event/metadata)
+
+  (p/start gv-test-app)
+  (p/stop gv-test-app)
+
+    ;; testing curation activities
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+        query (rdf/create-query "
+select ?x where 
+{ ?x :sepio/first-testing-method ?m }")]
+    (rdf/tx tdb
+      (->> (query tdb)
+           (map #(rdf/ld1-> % [:sepio/first-testing-method]))
+           frequencies)))
+
+  (storage/write @(get-in gv-test-app [:storage :response-cache-db :instance])
+                 :last-update
+                 (System/currentTimeMillis))
+
+  (def first-gv-legacy
+    (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-29"]
+      (->> (event-store/event-seq r)
+           first
+           #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
+                               %)))))
+
+  (def last-gv-legacy
+    (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-29"]
+      (->> (event-store/event-seq r)
+           last
+           #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
+                               %)))))
+
+
+  
+  (-> last-gv-legacy
+      event/deserialize
+      tap>)
+  
+  (event-store/with-event-reader [r    "/users/tristan/data/genegraph-neo/gene-validity-legacy-complete-2024-03-29"]
+    (->> (event-store/event-seq r)
+         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy])
+                             %))))
+  
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %))))
+
+  (def wilms-ac
+    "https://actionability.clinicalgenome.org/ac/Pediatric/api/sepio/doc/AC003")
+
+  
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/actionability_2024-02-12.edn.gz"]
+    (->> (event-store/event-seq r)
+         ;;(map event/deserialize)
+         #_(filter (fn [e] (some #(= "HGNC:12796" (:curie %))
+                               (get-in e [::event/data :genes]))))
+         ;; (map #(get-in % [::event/data :iri]))
+         ;; frequencies
+         ;; count
+         ;; last
+         ;; tap>
+         (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %))
+         ))
+
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-dosage_2024-02-13.edn.gz"]
+    (->> (event-store/event-seq r)
+         (filter #(re-find #"ISCA-6195" (::event/value %)))
+         #_(take-last 1)
+         #_(take 1)
+         (run! #(p/publish (get-in gv-test-app [:topics :dosage]) %))))
+  
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-gci]) %))))
+  
+  ;; Gene names testing
+
+  (let [rdf-publish-promise (promise)]
+
+    (Thread/startVirtualThread #(let [x (deref rdf-publish-promise 5000 :timeout)]
+                                  (if (= :timeout x)
+                                    (println "timeout")
+                                    (println "delivered"))))
+
+    (p/publish (get-in gv-test-app [:topics :system])
+               {:type :register-listener
+                :name ::rdf-publish-listener
+                :promise rdf-publish-promise
+                :predicate #(and (= :base-data (get-in % [::event/data :source]))
+                                 (= "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                                    (get-in % [::event/data ::event/key])))})
+
+    ;; testing with something smaller and faster first
+    (->> (-> "base.edn" io/resource slurp edn/read-string)
+         (filter #(= "http://dataexchange.clinicalgenome.org/gci-express" (:name %)))
+         (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
+                           {::event/data %}))))
+
+
+
+  (def gci-express-to-remove
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+      (rdf/tx tdb
+        ((rdf/create-query "
+select ?report where
+ { ?report a ?type ;
+           :dc/source ?source ;
+           :bfo/has-part / :sepio/has-subject ?proposition .
+   ?proposition :sepio/has-subject ?gene ;
+                :sepio/has-predicate ?moi ;
+                :sepio/has-object ?disease .
+   ?other_proposition :sepio/has-subject ?gene ;
+                      :sepio/has-predicate ?moi ;
+                      :sepio/has-object ?disease .
+   ?other_report :bfo/has-part / :sepio/has-subject ?other_proposition . 
+   FILTER NOT EXISTS { ?other_report :dc/source ?source } .
+}
+
+")
+         tdb
+         {:type :sepio/GeneValidityReport
+          :source :cg/GeneCurationExpress}))))
+
+  (second gci-express-to-remove)
+
+  (map
+   #(str (first %))
+   curation/test-disease-for-activity)
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (let [t1 (Instant/now)
+            result (curation/disease-activities
+                    tdb
+                    {:disease (rdf/resource "MONDO:0011783" tdb)})]
+        {:time (- (.toEpochMilli (Instant/now)) (.toEpochMilli t1))
+         :result result})))
+  
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (time
+       (curation/activities
+        tdb
+        {:gene (rdf/resource "NCBIGENE:144568" tdb)}))))
+  (int (/ (* 62 2200) 1000))
+
+  (->> (-> "base.edn" io/resource slurp edn/read-string)
+       (filter #(= "https://www.genenames.org/" (:name %)))
+       (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
+                         {::event/data %})))
+
+  (def gene-publish-event
+    (->> (-> "base.edn" io/resource slurp edn/read-string)
+         (filter #(= "https://www.genenames.org/" (:name %)))
+         (map (fn [e]
+                (-> {::event/data e
+                     ::base/handle (:fs-handle env)}
+                    base/publish-base-file-fn
+                    ::event/publish
+                    first)))))
+
+  (p/publish (get-in gv-test-app [:topics :base-data])
+             gene-publish-event)
+
+  (-> (get-in gv-test-app [:topics :fetch-base-events]) )
+
+  ;; / gene names testing
+
+
+  ;; legacy id testing
+  (def abcb4
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"51e15eba-7b16-4244-912e-2265259e0459" (::event/value %)))
+           (into [])
+           #_(take 1)
+           #_(mapv (fn [e] (-> (p/process
+                              (get-in gv-test-app [:processors :gene-validity-transform])
+                              (assoc e
+                                     ::event/completion-promise (promise)
+                                     ::event/format :json
+                                     ::event/skip-publish-effects true
+                                     ::event/skip-local-effects true))
+                             :gene-validity/model
+                             rdf/pp-model))))))
+
+  (->> abcb4
+       (mapv (fn [e] (-> (p/process
+                          (get-in gv-test-app [:processors :gene-validity-transform])
+                          (assoc e
+                                 ::event/completion-promise (promise)
+                                 ::event/format :json
+                                 #_#_#_#_::event/skip-publish-effects true
+                                 ::event/skip-local-effects true))
+                         :gene-validity/model
+                         rdf/pp-model))))
+
+
+
+
+
+  (-> (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+                 (assoc (first abcd4)
+                        ::event/completion-promise (promise)
+                        ::event/format :json
+                        ::event/skip-publish-effects true
+                        ::event/skip-local-effects true))
+      :gene-validity/model
+      rdf/pp-model)
+
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
+    (->> (event-store/event-seq r)
+         (run! (fn [e] (p/publish (get-in gv-test-app [:topics :gene-validity-gci])
+                                  (assoc e ::event/format :json))))))
+
+  (let [gv @(-> gv-test-app :storage :gv-tdb :instance)
+        iri "CGGV:7765e2a4-19e4-4b15-9233-4847606fc501"]
+    (rdf/tx gv
+      (rdf/ld1-> (rdf/resource iri gv) [:cg/website-legacy-id])))
+
+  ;; /legacy id testing
+  
+  (def eset1
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/all_gv_events.edn.gz"]
+      (->> (event-store/event-seq r)
+           (take 1000)
+           (mapv (fn [e] (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+                                    (assoc e
+                                           ::event/skip-publish-effects true
+                                           ::event/completion-promise (promise))))))))
+
+  
+
+
+  (->> eset1 (remove #(realized? (::event/completion-promise %))) count)
+
+  (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-validity-legacy_2024-02-20.edn.gz"]
+    (->> (event-store/event-seq r)
+         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy]) %))))
+
+    (event-store/with-event-reader [r "/users/tristan/data/genegraph-neo/gene-validity-legacy_2024-02-20.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (map #(p/process (get-in gv-test-app [:processors :import-gene-validity-legacy-report])
+                   (assoc %
+                          ::event/skip-local-effects true
+                          ::event/skip-publish-effects true)))))
+
+  (def b1
+    {::event/data
+     (->> (-> "base.edn" io/resource slurp edn/read-string)
+          first)
+     ::event/skip-local-effects true
+     ::event/skip-publish-effects true})
+
+  (->> (-> "base.edn" io/resource slurp edn/read-string)
+       (filter #(re-find #"gci-express-with-entrez-ids" (:source %)))
+       (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
+                         {::event/data %})))
+
+  (p/process (get-in gv-test-app [:processors :fetch-base-file]) b1)
+
+
+  
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (->> ((rdf/create-query "select ?x where { ?x a :sepio/GeneDosageReport }") tdb)
+           count
+           #_(into []))))
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (into []
+            ((rdf/create-query "
+select ?s where
+{ ?s a :sepio/GeneValidityEvidenceLevelAssertion ;
+     ^ :bfo/has-part / :bfo/has-part / a :cnt/ContentAsText }")
+             tdb
+             {::rdf/params {:limit 10}}))
+      ))
+    ;; "https://identifiers.org/hgnc:46902"
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (rdf/ld1-> 
+       (rdf/resource "http://dataexchange.clinicalgenome.org/gci/cb06ff0d-1cc6-494c-9ce5-f7cb26f34620" tdb)
+       [[:bfo/has-part :<]])
+      ))
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (->> ((rdf/create-query
+             '[:project [gene]
+               [:bgp
+                [gene :rdf/type :so/Gene]
+                [gene :skos/prefLabel gene_label]]])
+            tdb
+            {::rdf/params {:limit 10}})
+           count
+           #_(into []))))
+
+  (def sepio-events-path "/users/tristan/data/genegraph-neo/gv_sepio_2024-01-12.edn.gz")
+
+  (event-store/with-event-reader [r sepio-events-path]
+    (->>(event-store/event-seq r)
+       (map #(assoc %
+                    ::event/format ::rdf/n-triples
+                    ::event/skip-local-effects true
+                    ::event/skip-publish-effects true))
+       (map #(p/process (get-in gv-test-app [:processors :import-gv-curations]) %))
+       first
+       ::event/data
+       rdf/pp-model))
+
+  (event-store/with-event-reader [r sepio-events-path]
+    (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %)
+          (map #(assoc % ::event/format ::rdf/n-triples) (event-store/event-seq r))))
+  
+  (event-store/with-event-reader [r sepio-events-path]
+    (->> (event-store/event-seq r)
+         first
+         ::event/key))
+  
+  )
+
+
+(def populate-local-graphql-endpoint-def
+  {:type :genegraph-app
+   :kafka-clusters {:data-exchange data-exchange}
+   :storage {:gv-tdb gv-tdb
+             :response-cache-db response-cache-db}
+   :topics {:gene-validity-sepio
+            {:name :gene-validity-sepio
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization ::rdf/n-triples
+             :kafka-topic "gene_validity_sepio-v1"}
+            :dosage
+            {:name :dosage
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :json
+             :kafka-topic "gene_dosage_raw"}
+            :actionability
+            {:name :actionability
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :json
+             :kafka-topic "actionability"}
+            :gene-validity-legacy
+            {:name :gene-validity-legacy
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :json
+             :kafka-topic "gene-validity-legacy-complete-v1"}
+            :base-data
+            {:name :base-data
+             :type :kafka-reader-topic
+             :kafka-cluster :data-exchange
+             :serialization :edn
+             :kafka-topic "genegraph-base-v1"}}
+   :processors {:import-gv-curations import-gv-curations
+                :import-base-file import-base-processor
+                :import-actionability-curations import-actionability-curations
+                :import-dosage-curations import-dosage-curations
+                :import-gene-validity-legacy-report gene-validity-legacy-report-processor}})
+
+(comment
+  (def populate-local-graphql-endpoint
+    (p/init populate-local-graphql-endpoint-def))
+  (-> populate-local-graphql-endpoint
+      :topics
+      :gene-validity-sepio
+      :state
+      deref)
+  (p/start populate-local-graphql-endpoint)
+  (p/stop populate-local-graphql-endpoint)
+  )
