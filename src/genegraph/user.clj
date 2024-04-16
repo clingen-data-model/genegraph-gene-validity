@@ -2045,8 +2045,15 @@ query($gene:String) {
            tap>))
   )
 
-
+;; Experiment for gv-sepio-model 
 (comment
-  (string/replace "Complex Neurodevelopemental Disorder"
-                  " " "")
+  (let [tdb @(get-in gv/gv-test-app [:storage :gv-tdb :instance])
+        query (rdf/create-query "
+select ?t where 
+{ ?x a / :rdfs/subClassOf * :sepio/EvidenceItem ; 
+     a ?t . }")]
+    (rdf/tx tdb
+      (mapv #(rdf/ld1-> % [:rdfs/label])
+            (query tdb))))
+
   )

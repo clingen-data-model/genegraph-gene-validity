@@ -51,7 +51,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "dev"
+    {:platform "local"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
      :local-data-path "data/"}
     {}))
@@ -82,8 +82,6 @@
                    :graphql-schema (gql-schema/merged-schema
                                     {:executor direct-executor}))
     {}))
-
-(tap> local-env)
 
 (def env
   (merge local-env admin-env))
@@ -574,6 +572,16 @@
   (p/start gv-test-app)
   (p/stop gv-test-app)
 
+    ;; testing curation activities
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+        query (rdf/create-query "
+select ?x where 
+{ ?x :sepio/first-testing-method ?m }")]
+    (rdf/tx tdb
+      (->> (query tdb)
+           (map #(rdf/ld1-> % [:sepio/first-testing-method]))
+           frequencies)))
+
   (storage/write @(get-in gv-test-app [:storage :response-cache-db :instance])
                  :last-update
                  (System/currentTimeMillis))
@@ -660,12 +668,7 @@
          (run! #(p/publish (get-in gv-test-app [:topics :fetch-base-events])
                            {::event/data %}))))
 
-  ;; testing curation activities
-  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
-    (rdf/tx tdb
-      (let [curation
-            (storage/read tdb "http://dataexchange.clinicalgenome.org/gci/51e15eba-7b16-4244-912e-2265259e0459")]
-        (rdf/pp-model curation))))
+
 
   (def gci-express-to-remove
     (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
