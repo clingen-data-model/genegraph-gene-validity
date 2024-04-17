@@ -1,11 +1,7 @@
 (ns genegraph.gene-validity
   (:require [genegraph.framework.app :as app]
             [genegraph.framework.protocol :as p]
-            [genegraph.framework.event.store :as event-store]
-            [genegraph.framework.processor :as processor]
             [genegraph.framework.event :as event]
-            [genegraph.framework.kafka :as kafka]
-            [genegraph.framework.kafka.admin :as kafka-admin]
             [genegraph.framework.storage :as storage]
             [genegraph.framework.storage.rdf :as rdf]
             [genegraph.framework.env :as env]
@@ -20,25 +16,17 @@
             [genegraph.gene-validity.graphql.response-cache :as response-cache]
             [com.walmartlabs.lacinia.pedestal2 :as lacinia-pedestal]
             [com.walmartlabs.lacinia.pedestal.internal :as internal]
-            [com.walmartlabs.lacinia.resolve :as resolve]
             [io.pedestal.http :as http]
             [io.pedestal.interceptor :as interceptor]
             [io.pedestal.log :as log]
             [clojure.java.io :as io]
-            [clojure.set :as set]
-            [clojure.edn :as edn]
-            ;; testing
-            [genegraph.gene-validity.graphql.common.curation :as curation]
-            )
+            [clojure.set :as set])
   (:import [org.apache.jena.sparql.core Transactional]
            [org.apache.jena.query ReadWrite]
            [org.apache.jena.rdf.model Model]
-           [org.apache.kafka.clients.producer KafkaProducer]
            [java.time Instant]
-           [java.util.concurrent LinkedBlockingQueue ThreadPoolExecutor TimeUnit Executor Executors])
+           [java.util.concurrent Executor])
   (:gen-class))
-
-
 
 ;; stuff to make sure Lacinia recieves an executor which can bookend
 ;; database transactions
@@ -53,7 +41,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "local"
+    {:platform "dev"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
      :local-data-path "data/"}
     {}))
@@ -74,12 +62,12 @@
                  :local-data-path "/data"
                  :graphql-schema (gql-schema/merged-schema
                                   {:executor direct-executor})
-                 :fetch-base-events-topic "genegraph-fetch-base-dev-v1"
-                 :api-log-topic "genegraph-api-log-dev-v1"
-                 :gene-validity-complete-topic "genegraph-gene-validity-complete-dev-v1"
-                 :gene-validity-legacy-complete-topic "genegraph-gene-validity-legacy-complete-dev-v1"
-                 :gene-validity-sepio-topic "genegraph-gene-validity-sepio-dev-v1"
-                 :base-data-topic "genegraph-base-data-dev-v1")
+                 :fetch-base-events-topic "gg-fb-dev-1"
+                 :api-log-topic "gg-apilog-dev-1"
+                 :gene-validity-complete-topic "gg-gv-dev-1"
+                 :gene-validity-legacy-complete-topic "gg-gvl-dev-1"
+                 :gene-validity-sepio-topic "gg-gvs-dev-1"
+                 :base-data-topic "gg-base-dev-1")
     "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
@@ -88,7 +76,13 @@
                                :bucket "genegraph-gene-validity-stage-1"}
                    :local-data-path "/data"
                    :graphql-schema (gql-schema/merged-schema
-                                    {:executor direct-executor}))
+                                    {:executor direct-executor})
+                   :fetch-base-events-topic "genegraph-fetch-base-stage-v1"
+                   :api-log-topic "genegraph-api-log-stage-v1"
+                   :gene-validity-complete-topic "genegraph-gene-validity-complete-stage-v1"
+                   :gene-validity-legacy-complete-topic "genegraph-gene-validity-legacy-complete-stage-v1"
+                   :gene-validity-sepio-topic "genegraph-gene-validity-sepio-stage-v1"
+                   :base-data-topic "genegraph-base-data-stage-v1")
     {}))
 
 (def env
@@ -98,9 +92,7 @@
 
 (def fetch-base-events-topic
   {:name :fetch-base-events
-   :type :kafka-consumer-group-topic
    :serialization :edn
-   :kafka-consumer-group (:kafka-consumer-group env)
    :kafka-cluster :data-exchange
    :kafka-topic (:fetch-base-events-topic env)
    :kafka-topic-config {"cleanup.policy" "compact"
@@ -108,7 +100,6 @@
 
 (def base-data-topic
   {:name :base-data
-   :type :kafka-producer-topic
    :serialization :edn
    :kafka-cluster :data-exchange
    :kafka-topic (:base-data-topic env)
@@ -117,62 +108,58 @@
 
 (def gene-validity-complete-topic
   {:name :gene-validity-complete
-   :type :kafka-consumer-group-topic
-   :kafka-consumer-group (:kafka-consumer-group env)
    :kafka-cluster :data-exchange
    :serialization :json
    :buffer-size 5
-   :kafka-topic (:gene-validity-complete-topic env)})
+   :kafka-topic (:gene-validity-complete-topic env)
+   :kafka-topic-config {}})
 
 (def gene-validity-sepio-topic 
   {:name :gene-validity-sepio
-   :type :kafka-reader-topic
    :kafka-cluster :data-exchange
    :serialization ::rdf/n-triples
-   :kafka-topic (:gene-validity-sepio-topic env)})
+   :kafka-topic (:gene-validity-sepio-topic env)
+   :kafka-topic-config {}})
 
 (def api-log-topic
   {:name :api-log
-   :type :kafka-producer-topic
    :kafka-cluster :data-exchange
    :serialization :edn
    :create-producer true
    :kafka-topic (:api-log-topic env)
-   :kafka-topic-config {"retention.ms" (str (* 1000 60 60 24 14))}}) ; 2 wk retention
+   :kafka-topic-config {"retention.ms"
+                        (str (* 1000 60 60 24 14))}}) ; 2 wk retention
 
 (def dosage-topic
   {:name :dosage
-   :type :kafka-reader-topic
    :kafka-cluster :data-exchange
    :serialization :json
    :kafka-topic "gene_dosage_raw"})
 
 (def actionability-topic
   {:name :actionability
-   :type :kafka-reader-topic
    :kafka-cluster :data-exchange
    :serialization :json
    :kafka-topic "actionability"})
 
 (def gene-validity-raw-topic
   {:name :gene-validity-raw
-   :type :kafka-consumer-group-topic
-   :kafka-consumer-group (:kafka-consumer-group env)
+   :serialization :json
    :kafka-cluster :data-exchange
    :kafka-topic "gene_validity_raw"})
 
 (def gene-validity-legacy-topic
   {:name :gene-validity-legacy
-   :type :kafka-consumer-group-topic
-   :kafka-consumer-group (:kafka-consumer-group env)
+   :serialization :json
    :kafka-cluster :data-exchange
    :kafka-topic "gene_validity"})
 
 (def gene-validity-legacy-complete-topic
-  {:type :kafka-producer-topic
-   :name :gene-validity-legacy-complete
+  {:name :gene-validity-legacy-complete
+   :serialization :json
    :kafka-topic (:gene-validity-legacy-complete-topic env)
-   :kafka-cluster :data-exchange})
+   :kafka-cluster :data-exchange
+   :kafka-topic-config {}})
 
 ;; /Topics
 
@@ -257,8 +244,6 @@
     :error (fn [context ex]
              (.end (get-in context [::storage/storage :gv-tdb]))
              context)}))
-
-
 
 (defn init-graphql-processor [p]
   (assoc-in p
@@ -364,7 +349,7 @@
 (def transform-processor
   {:type :processor
    :name :gene-validity-transform
-   :subscribe :gene-validity-gci
+   :subscribe :gene-validity-complete
    :backing-store :gene-validity-version-store
    :interceptors [report-transform-errors
                   gci-model/add-gci-model
@@ -601,7 +586,8 @@
    :kafka-clusters {:data-exchange data-exchange}
    :topics {:fetch-base-events
             (assoc fetch-base-events-topic
-                   :type :kafka-consumer-group-topic)
+                   :type :kafka-consumer-group-topic
+                   :kafka-consumer-group (:kafka-consumer-group env))
             :base-data
             (assoc base-data-topic
                    :type :kafka-producer-topic)}
@@ -750,7 +736,7 @@
   (log/info :fn ::-main
             :msg "starting genegraph"
             :function (:function env))
-  (let [app (p/init (get genegraph-function (:function env) gv-test-app-def))
+  (let [app (p/init (get genegraph-function (:function env)))
         run-atom (atom true)]
     (.addShutdownHook (Runtime/getRuntime)
                       (Thread. (fn []

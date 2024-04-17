@@ -10,11 +10,12 @@
             [genegraph.framework.kafka.admin :as kafka-admin]
             [genegraph.framework.storage :as storage]
             [io.pedestal.interceptor :as interceptor]
+            [io.pedestal.log :as log]
             [clojure.set :as set]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
-  (:import [java.time Instant OffsetDateTime Duration]))
-
+  (:import [java.time Instant OffsetDateTime Duration]
+           [java.io PushbackReader]))
 
 ;; Step 1
 ;; Select the environment to configure
@@ -46,6 +47,21 @@
          gv/gv-transformer-def
          gv/gv-graphql-endpoint-def
          gv/gv-appender-def])
+
+  ;; Delete all Genegraph-created topics
+  (with-open [admin-client (kafka-admin/create-admin-client gv/data-exchange)]
+    (run! #(try
+             (kafka-admin/delete-topic admin-client (:kafka-topic %))
+             (catch Exception e
+               (log/info :msg "Exception deleting topic "
+                         :topic (:kafka-topic %))))
+          [#_gv/fetch-base-events-topic
+           #_gv/base-data-topic
+           gv/gene-validity-complete-topic
+           #_gv/gene-validity-legacy-complete-topic
+           #_gv/gene-validity-sepio-topic
+           #_gv/api-log-topic]))
+
   )
 
 ;; Step 3
@@ -59,84 +75,56 @@
 ;; The data needed to seed this topic is stored in version control with
 ;;    genegraph-gene-validity in resources/base.edn
 
-(defn seed-base-fn [event]
-  (event/publish event (assoc (select-keys event [::event/data])
-                              ::event/topic :fetch-base-events)))
-
-(def seed-base-interceptor
-  (interceptor/interceptor
-   {:name ::seed-base-interceptor
-    :enter (fn [e]
-             (seed-base-fn e))}))
-
 (def gv-seed-base-event-def
   {:type :genegraph-app
    :kafka-clusters {:data-exchange gv/data-exchange}
    :topics {:fetch-base-events
-            {:name :fetch-base-events
-             :type :kafka-producer-topic
-             :kafka-cluster :data-exchange
-             :serialization :edn
-             :kafka-topic "genegraph-fetch-base-events-v1"}
-            :initiate-fetch
-            {:name :initiate-fetch
-             :type :simple-queue-topic}}
-   :processors {:initiate-base-file-update
-                {:name :initiate-base-file-update
-                 :type :processor
-                 :subscribe :initiate-fetch
-                 :kafka-cluster :data-exchange
-                 :interceptors [seed-base-interceptor]}}})
+            (assoc gv/fetch-base-events-topic
+                   :type :kafka-producer-topic
+                   :create-producer true)}})
 
 (comment
   (def gv-seed-base-event
     (p/init gv-seed-base-event-def))
 
   (p/start gv-seed-base-event)
-  (p/stop gv-seed-base-event)
-
+  
   (->> (-> "base.edn" io/resource slurp edn/read-string)
        (run! #(p/publish (get-in gv-seed-base-event
-                                 [:topics :initiate-fetch])
-                         {::event/data %})))  
+                                 [:topics :fetch-base-events])
+                         {::event/data %
+                          ::event/key (:name %)})))
+
+  (p/stop gv-seed-base-event)
   )
 
 ;; Step 3.2
 ;; :gene-validity-legacy: old 'summary' format for gene validity data, needs to be seeded with some
 ;;                        early data that needed to be recovered due to a misconfiguration.
 ;; The data needed to seed this topic is stored in Google Cloud Storage
+;; and must be downloaded and unzipped into a local directory.
+
+;; Set this var for the path on your local system
+(def gene-validity-legacy-path
+  "/Users/tristan/data/genegraph-neo/neo4j-legacy-events")
 
 ;; This step has been flaky on occasion. Remember to verfiy that all historic curations have been
 ;; successfully written to the topic before moving on.
 
-(defn publish-legacy-curation-fn [e]
-  (let [id (get-in e [::event/data :id])
-        score-string (get-in e [::event/data :score-string])]
-    (event/publish e
-                   {::event/topic :gene-validity-legacy-complete-v1
-                    ::event/key id
-                    ::event/data {:iri id
-                                  :scoreJson score-string}})))
-
-(def publish-legacy-curation
-  (interceptor/interceptor
-   {:name ::publish-legacy-curation
-    :enter (fn [e] (publish-legacy-curation-fn e))}))
-
 (def upload-gv-neo4j-def
   {:type :genegraph-app
    :kafka-clusters {:data-exchange gv/data-exchange}
-   :topics {:gene-validity-legacy-complete-v1
-            {:type :kafka-producer-topic
-             :name :gene-validity-legacy-complete-v1
-             :kafka-topic "gene-validity-legacy-complete-v1"
-             :serialization :json
-             :kafka-cluster :data-exchange}}
-   :processors {:publish-legacy-curations-processor
-                {:type :processor
-                 :name :publish-legacy-curations-processor
-                 :kafka-cluster :data-exchange
-                 :interceptors [publish-legacy-curation]}}})
+   :topics {:gene-validity-legacy-complete
+            (assoc gv/gene-validity-legacy-complete-topic
+                   :type :kafka-producer-topic
+                   :create-producer true)}})
+
+(defn legacy-gv-edn->event [f]
+  (with-open [pbr (PushbackReader. (io/reader f))]
+    (let [{:keys [id score-string]} (:genegraph.sink.event/value (edn/read pbr))]
+      {::event/data {:iri id
+                     :scoreJson score-string}
+       ::event/key id})))
 
 (comment
   (def upload-gv-neo4j
@@ -144,114 +132,64 @@
   (p/start upload-gv-neo4j)
   (p/stop upload-gv-neo4j)
 
-  (->> "/Users/tristan/data/genegraph-neo/neo4j-legacy-events"
+  (->> gene-validity-legacy-path
        io/file
        file-seq
        (filter #(.isFile %))
-       (map #(-> %
-                 slurp
-                 edn/read-string
-                 (s/rename-keys {:genegraph.sink.event/value ::event/data})))
-       (remove #(gv-legacy-on-stream (get-in % [::event/data :id])))
-       (run! #(p/process (get-in upload-gv-neo4j
-                                 [:processors :publish-legacy-curations-processor])
-                         %)))
-  
+       (run! #(p/publish (get-in upload-gv-neo4j
+                                 [:topics  :gene-validity-legacy-complete])
+                         (legacy-gv-edn->event %))))
+
   )
 
-;; :gene-validity-complete: raw gene validity data, needs to be seeded with gene validity curations
-;;                          made prior to release of the GCI
+;; Step 3.3
+;; :gene-validity-complete: raw gene validity data,
+;; needs to be seeded with gene validity curations
+;; made prior to release of the GCI
 ;; The data needed to seed this topic is stored in Google Cloud Storage
 
 ;; This is another potentially flaky one. Remember to verfiy that all historic curations have been
 ;; successfully written to the topic before moving on.
 
-
-(def gene-validity-raw-publisher
-  (interceptor/interceptor
-   {:name ::gene-validity-raw-publisher
-    :enter (fn [event]
-             (event/publish event (assoc (:payload event)
-                                         ::event/topic :gv-complete)))}))
-
-(def gv-setup
-  (p/init
-   {:type :genegraph-app
-    :kafka-clusters {:local gv/data-exchange}
-    :topics {:gv-complete
-             {:name :gv-complete
-              :type :kafka-producer-topic
-              :kafka-cluster :local
-              :kafka-topic "gene_validity_complete-v1"}
-             :publish-gv
-             {:name :publish-gv
-              :type :simple-queue-topic}}
-    :processors {:gv-publisher
-                 {:name :gv-publisher
-                  :type :processor
-                  :kafka-cluster :local
-                  :subscribe :publish-gv
-                  :interceptors [gene-validity-raw-publisher]}}}))
+(def gv-setup-def
+  {:type :genegraph-app
+   :kafka-clusters {:data-exchange gv/data-exchange}
+   :topics {:gene-validity-complete
+            (assoc gv/gene-validity-complete-topic
+                   :type :kafka-producer-topic
+                   :create-producer true
+                   :serialization nil)}}) ; just copying strings, do not serialize
 
 (def sept-1-2020
   (-> (OffsetDateTime/parse "2020-09-01T00:00Z")
       .toInstant
       .toEpochMilli))
 
-(defn prior-event->publish-fn [e]
-  {:payload
-   (-> e
-       (set/rename-keys {:genegraph.sink.event/key ::event/key
-                       :genegraph.sink.event/value ::event/data})
-       (select-keys [::event/key ::event/data])
-       (assoc ::event/timestamp sept-1-2020))})
+(defn prior-event->publish-fn [file]
+  (with-open [pbr (PushbackReader. (io/reader file))]
+    (-> (edn/read pbr)
+        (set/rename-keys {:genegraph.sink.event/key ::event/key
+                          :genegraph.sink.event/value ::event/data})
+        (select-keys [::event/key ::event/data])
+        (assoc ::event/timestamp sept-1-2020))))
 
-(defn event-seq-from-directory [directory]
-  (let [files (->> directory
-                   io/file
-                   file-seq
-                   (filter #(re-find #".edn" (.getName %))))]
-    (map #(edn/read-string (slurp %)) files)))
-
-(defn publisher-fn [event]
-  (event/publish event (assoc (:payload event)
-                              ::event/topic :gv-complete)))
-
-(def gene-validity-raw-publisher
-  (interceptor/interceptor
-   {:name ::gene-validity-raw-publisher
-    :enter (fn [event]
-             (event/publish event (assoc (:payload event)
-                                         ::event/topic :gv-complete)))}))
-
-(def gv-setup-def
-  {:type :genegraph-app
-   :kafka-clusters {:data-exchange gv/data-exchange}
-   :topics {:gv-complete
-            {:name :gv-complete
-             :type :kafka-producer-topic
-             :kafka-cluster :data-exchange
-             :kafka-topic "gene_validity_complete-v1"}
-            :publish-gv
-            {:name :publish-gv
-             :type :simple-queue-topic}}
-   :processors {:gv-publisher
-                {:name :gv-publisher
-                 :type :processor
-                 :kafka-cluster :data-exchange
-                 :subscribe :publish-gv
-                 :interceptors [gene-validity-raw-publisher]}}})
-
+(defn event-files [directory]
+  (->> directory
+       io/file
+       file-seq
+       (filter #(re-find #".edn" (.getName %)))))
 
 (comment
-  (def gv-setup (p/init gv-setup))
+  (def gv-setup (p/init gv-setup-def))
   (p/start gv-setup)
   (p/stop gv-setup)
 
-   (run! #(p/publish (get-in gv-setup [:topics :publish-gv])
+  (run! #(p/publish (get-in gv-setup [:topics :gene-validity-complete])
                    (prior-event->publish-fn %))
-           (concat
-   (event-seq-from-directory "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-snapshot")
-   (event-seq-from-directory "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-missing-data")))
-  
+        (concat
+         (event-files "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-snapshot")
+         (event-files "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-missing-data")))
+
   )
+
+
