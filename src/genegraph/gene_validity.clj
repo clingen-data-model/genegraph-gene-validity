@@ -41,8 +41,8 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "dev"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
+    {:platform "stage"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
 
@@ -71,18 +71,18 @@
     "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
-                   :kafka-consumer-group "genegraph-gene-validity-stage-1"
+                   :kafka-consumer-group "gg-stage-2"
                    :fs-handle {:type :gcs
                                :bucket "genegraph-gene-validity-stage-1"}
                    :local-data-path "/data"
                    :graphql-schema (gql-schema/merged-schema
                                     {:executor direct-executor})
-                   :fetch-base-events-topic "genegraph-fetch-base-stage-v1"
-                   :api-log-topic "genegraph-api-log-stage-v1"
-                   :gene-validity-complete-topic "genegraph-gene-validity-complete-stage-v1"
-                   :gene-validity-legacy-complete-topic "genegraph-gene-validity-legacy-complete-stage-v1"
-                   :gene-validity-sepio-topic "genegraph-gene-validity-sepio-stage-v1"
-                   :base-data-topic "genegraph-base-data-stage-v1")
+                   :fetch-base-events-topic "gg-fb-stage-1"
+                   :api-log-topic "gg-apilog-stage-1"
+                   :gene-validity-complete-topic "gg-gv-stage-1"
+                   :gene-validity-legacy-complete-topic "gg-gvl-stage-1"
+                   :gene-validity-sepio-topic "gg-gvs-stage-1"
+                   :base-data-topic "gg-base-stage-1")
     {}))
 
 (def env
@@ -315,7 +315,7 @@
   {:name :gene-validity-version-store
    :type :rocksdb
    :snapshot-handle (assoc (:fs-handle env)
-                           :path "genegraph-version-store-snapshot-v1.tar.lz4")
+                           :path "genegraph-version-store-snapshot-v2.tar.lz4")
    :path (str (:local-data-path env) "version-store")})
 
 (defn report-transform-errors-fn [event]
@@ -376,7 +376,7 @@
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
-   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v1.nq.gz")
+   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v2.nq.gz")
    :path (str (:local-data-path env) "/gv-tdb")})
 
 (def response-cache-db
@@ -596,7 +596,6 @@
    :http-servers gv-ready-server})
 
 
-;; TODO validate that the topic name change is OK
 (def gv-transformer-def
   {:type :genegraph-app
    :kafka-clusters {:data-exchange data-exchange}

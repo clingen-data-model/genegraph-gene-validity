@@ -48,7 +48,8 @@
          gv/gv-graphql-endpoint-def
          gv/gv-appender-def])
 
-  ;; Delete all Genegraph-created topics
+  ;; Delete all (or some) Genegraph-created topics
+  ;; Use this to fix mistakes.
   (with-open [admin-client (kafka-admin/create-admin-client gv/data-exchange)]
     (run! #(try
              (kafka-admin/delete-topic admin-client (:kafka-topic %))
@@ -57,7 +58,7 @@
                          :topic (:kafka-topic %))))
           [#_gv/fetch-base-events-topic
            #_gv/base-data-topic
-           gv/gene-validity-complete-topic
+           #_gv/gene-validity-complete-topic
            #_gv/gene-validity-legacy-complete-topic
            #_gv/gene-validity-sepio-topic
            #_gv/api-log-topic]))
