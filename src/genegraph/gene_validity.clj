@@ -567,20 +567,6 @@
     ::http/join? false
     ::http/secure-headers nil}})
 
-(defn log-api-event-fn [e]
-  (let [data (::event/data e)]
-    (log/info :fn ::log-api-event
-              :duration (- (:end-time data) (:start-time data))
-              :response-size (:response-size data)
-              :handled-by (:handled-by data)
-              :status (:status data))
-    e))
-
-(def log-api-event
-  (interceptor/interceptor
-   {:name ::log-api-event
-    :enter (fn [e] (log-api-event-fn e))}))
-
 (def gv-base-app-def
   {:type :genegraph-app
    :kafka-clusters {:data-exchange data-exchange}

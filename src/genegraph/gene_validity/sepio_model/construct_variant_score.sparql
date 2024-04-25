@@ -185,17 +185,30 @@ where {
   BIND(IF( ?zygosity = :geno/Homozygous , ?baseScore * 2 , ?baseScore) AS ?score) .
   BIND(IF( ?zygosity = :geno/Homozygous , ?calculatedScore * 2 , ?calculatedScore) AS ?resultCalculatedScore) .
 
-  ?annotation  gci:individuals|gci:individualIncluded ?individual ;
-  ^gci:familyIncluded? / ^(gci:families|gci:groups)? / gci:article ?publication .
+  ?annotation
+  (gci:families|gci:groups)? /
+  gci:familyIncluded? /
+  gci:individuals|gci:individualIncluded
+  ?individual .
 
+
+  OPTIONAL {
+    ?annotation gci:article / gci:pmid ?pmid .
+    BIND(IRI(CONCAT(?pmbase, ?pmid)) AS ?article) .
+  }
+
+  OPTIONAL {
+    ?annotation gci:scv / gci:scvId ?scvid .
+    BIND(IRI(CONCAT(?scvbase, ?scvid)) AS ?article) .
+  }
+  
   OPTIONAL {
     ?family gci:individualIncluded ?individual ;
     gci:label ?familyLabel ;
     a gci:family .
   }
 
-  ?publication gci:pmid ?pmid .
-  BIND(IRI(CONCAT(?pmbase, ?pmid)) AS ?article) .
+
 
   # TODO remove this before commit 
 

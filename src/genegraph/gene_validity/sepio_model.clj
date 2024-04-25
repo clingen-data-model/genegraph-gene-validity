@@ -13,6 +13,7 @@
    :legacy_report_base "http://dataexchange.clinicalgenome.org/gci/legacy-report_"
    :arbase "http://reg.genome.network/allele/"
    :cvbase "https://www.ncbi.nlm.nih.gov/clinvar/variation/"
+   :scvbase "https://identifiers.org/clinvar.submission:"
    :pmbase "https://pubmed.ncbi.nlm.nih.gov/"
    :affbase "http://dataexchange.clinicalgenome.org/agent/"})
 
