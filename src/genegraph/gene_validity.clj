@@ -41,7 +41,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "stage"
+    {:platform "prod"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -67,7 +67,9 @@
                  :gene-validity-complete-topic "gg-gv-dev-1"
                  :gene-validity-legacy-complete-topic "gg-gvl-dev-1"
                  :gene-validity-sepio-topic "gg-gvs-dev-1"
-                 :base-data-topic "gg-base-dev-1")
+                 :base-data-topic "gg-base-dev-1"
+                 :gv-transform-tx-id "gg-gv-transform-dev"
+                 :fetch-base-tx-id "gg-fetch-base-dev")
     "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
@@ -82,7 +84,26 @@
                    :gene-validity-complete-topic "gg-gv-stage-1"
                    :gene-validity-legacy-complete-topic "gg-gvl-stage-1"
                    :gene-validity-sepio-topic "gg-gvs-stage-1"
-                   :base-data-topic "gg-base-stage-1")
+                   :base-data-topic "gg-base-stage-1"
+                   :gv-transform-tx-id "gg-gv-transform-stage"
+                   :fetch-base-tx-id "gg-fetch-base-stage")
+    "prod" (assoc (env/build-environment "974091131481" ["dataexchange-genegraph"])
+                  :function (System/getenv "GENEGRAPH_FUNCTION")
+                  :kafka-user "User:2592237"
+                  :kafka-consumer-group "gg-prod-1"
+                  :fs-handle {:type :gcs
+                              :bucket "genegraph-gene-validity-prod-1"}
+                  :local-data-path "/data"
+                  :graphql-schema (gql-schema/merged-schema
+                                   {:executor direct-executor})
+                  :fetch-base-events-topic "gg-fb-prod-1"
+                  :api-log-topic "gg-apilog-prod-1"
+                  :gene-validity-complete-topic "gg-gv-prod-1"
+                  :gene-validity-legacy-complete-topic "gg-gvl-prod-1"
+                  :gene-validity-sepio-topic "gg-gvs-prod-1"
+                  :base-data-topic "gg-base-prod-1"
+                  :gv-transform-tx-id "gg-gv-transform-prod"
+                  :fetch-base-tx-id "gg-fetch-base-prod")
     {}))
 
 (def env
@@ -578,7 +599,8 @@
             (assoc base-data-topic
                    :type :kafka-producer-topic)}
    :processors {:fetch-base (assoc fetch-base-processor
-                                   :kafka-cluster :data-exchange)}
+                                   :kafka-cluster :data-exchange
+                                   :kafka-transactional-id (:fetch-base-tx-id env))}
    :http-servers gv-ready-server})
 
 
@@ -596,7 +618,8 @@
    :storage {:gene-validity-version-store gene-validity-version-store}
    :processors {:gene-validity-transform
                 (assoc transform-processor
-                       :kafka-cluster :data-exchange)}
+                       :kafka-cluster :data-exchange
+                       :kafka-transactional-id (:gv-transform-tx-id env))}
    :http-servers gv-ready-server})
 
 (def reporter-interceptor

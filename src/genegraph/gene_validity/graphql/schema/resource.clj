@@ -62,7 +62,10 @@
                         :path [:skos/is-in-scheme]}
             :subject_of {:type '(list :Statement)
                          :description "Assertions (or propositions) that have this resource as a subject (or object)."
-                         :resolve subject-of}}})
+                         :resolve subject-of}
+            :is_about {:type '(list :Resource)
+                       :description "A (currently) primitive relation that relates an information artifact to an entity. (IAO:0000136)"
+                       :path [:iao/is-about]}}})
 
 (def generic-resource
   {:name :GenericResource

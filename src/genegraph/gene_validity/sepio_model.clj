@@ -45,7 +45,8 @@
                    unlink-variant-scores-when-proband-scores-exist
                    unlink-segregations-when-no-proband-and-lod-scores
                    add-legacy-website-id
-                   unpublish-evidence-level-assertion)
+                   unpublish-evidence-level-assertion
+                   construct-scv)
 
 (def has-affiliation-query
   "Query that returns a curations full affiliation IRI as a Resource.
@@ -92,6 +93,7 @@
    construct-variant-score
    construct-ar-variant-score
    construct-unscoreable-evidence
+   construct-scv
    unpublish-evidence-level-assertion])
 
 (def approval-activity-query

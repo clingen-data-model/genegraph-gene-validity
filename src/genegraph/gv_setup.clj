@@ -96,6 +96,20 @@
                          {::event/data %
                           ::event/key (:name %)})))
 
+  (->> (-> "base.edn" io/resource slurp edn/read-string)
+       (filter #(= "http://purl.obolibrary.org/obo/mondo.owl" (:name %)))
+       (run! #(p/publish (get-in gv-seed-base-event
+                                 [:topics :fetch-base-events])
+                         {::event/data %
+                          ::event/key (:name %)})))
+
+  (->> (-> "base.edn" io/resource slurp edn/read-string)
+       (filter #(= "http://dataexchange.clinicalgenome.org/gci-express" (:name %)))
+       (run! #(p/publish (get-in gv-seed-base-event
+                                 [:topics :fetch-base-events])
+                         {::event/data %
+                          ::event/key (:name %)})))
+
   (p/stop gv-seed-base-event)
   )
 
