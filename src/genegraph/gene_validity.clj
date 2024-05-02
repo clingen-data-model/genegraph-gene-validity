@@ -86,7 +86,9 @@
                    :gene-validity-sepio-topic "gg-gvs-stage-1"
                    :base-data-topic "gg-base-stage-1"
                    :gv-transform-tx-id "gg-gv-transform-stage"
-                   :fetch-base-tx-id "gg-fetch-base-stage")
+                   :fetch-base-tx-id "gg-fetch-base-stage"
+                   :appender-legacy-tx-id "gg-legacy-appender-stage"
+                   :appender-raw-tx-id "gg-raw-appender-stage")
     "prod" (assoc (env/build-environment "974091131481" ["dataexchange-genegraph"])
                   :function (System/getenv "GENEGRAPH_FUNCTION")
                   :kafka-user "User:2592237"
@@ -103,7 +105,9 @@
                   :gene-validity-sepio-topic "gg-gvs-prod-1"
                   :base-data-topic "gg-base-prod-1"
                   :gv-transform-tx-id "gg-gv-transform-prod"
-                  :fetch-base-tx-id "gg-fetch-base-prod")
+                  :fetch-base-tx-id "gg-fetch-base-prod"
+                  :appender-legacy-tx-id "gg-legacy-appender-prod"
+                  :appender-raw-tx-id "gg-raw-appender-prod")
     {}))
 
 (def env
@@ -702,12 +706,14 @@
                  :type :processor
                  :subscribe :gene-validity-raw
                  :kafka-cluster :data-exchange
+                 :kafka-transactional-id (:appender-raw-tx-id env)
                  :interceptors [append-gene-validity-raw]}
                 :gene-validity-legacy-appender
                 {:name :gene-validity-legacy-appender
                  :type :processor
                  :subscribe :gene-validity-legacy
                  :kafka-cluster :data-exchange
+                 :kafka-transactional-id (:appender-legacy-tx-id env)
                  :interceptors [append-gene-validity-legacy]}}
    :http-servers gv-ready-server})
 
