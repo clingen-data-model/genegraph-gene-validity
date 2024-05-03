@@ -12,7 +12,6 @@ steps:
       git clone https://clingen-ci:$$GITHUB_TOKEN@github.com/clingen-data-model/architecture \
       && cd architecture \
       && /usr/bin/yq eval -i ".docker_image_tag = \"$COMMIT_SHA\"" ./helm/values/genegraph-gene-validity/values-stage.yaml \
-      && date "+%Y-%m-%dT%H%M" > /workspace/DATETIME.txt \
       && git add -u \
       && git -c user.name="Clingen CI Automation" -c user.email="clingendevs@broadinstitute.org" commit -m "bumping docker image for stage genegraph-gene-validity" \
       && git push origin master

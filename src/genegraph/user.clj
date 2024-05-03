@@ -7,6 +7,7 @@
             [genegraph.framework.storage.rdf :as rdf]
             [genegraph.framework.event.store :as event-store]
             [genegraph.gene-validity :as gv]
+            [genegraph.gene-validity.gci-model :as gci-model]
             [genegraph.gene-validity.graphql.response-cache :as response-cache]
             [portal.api :as portal]
             [clojure.data.json :as json]
@@ -49,8 +50,8 @@
 (def gv-test-app-def
   {:type :genegraph-app
    :kafka-clusters {:data-exchange gv/data-exchange}
-   :topics {:gene-validity-gci
-            {:name :gene-validity-gci
+   :topics {:gene-validity-complete
+            {:name :gene-validity-complete
              :type :simple-queue-topic}
             :gene-validity-sepio
             {:name :gene-validity-sepio
@@ -67,8 +68,8 @@
             :dosage
             {:name :dosage
              :type :simple-queue-topic}
-            :gene-validity-legacy
-            {:name :gene-validity-legacy
+            :gene-validity-legacy-complete
+            {:name :gene-validity-legacy-complete
              :type :simple-queue-topic}
             :api-log
             {:name :api-log
@@ -92,15 +93,13 @@
 (comment
   (def gv-test-app (p/init gv-test-app-def))
   (p/start gv-test-app)
+  (p/stop gv-test-app)
 
   )
-
 
 ;; Downloading events
 
 (def root-data-dir "/Users/tristan/data/genegraph-neo/")
-
-(str (LocalDate/now))
 
 (defn get-events-from-topic [topic]
   ;; topic->event-file redirects stdout
@@ -126,6 +125,7 @@
 
   (get-events-from-topic gv/actionability-topic)
   (get-events-from-topic gv/gene-validity-complete-topic)
+  (get-events-from-topic gv/gene-validity-raw-topic)
 
 )
 
@@ -137,15 +137,63 @@
     (->> (event-store/event-seq r)
          count))
 
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_raw-2024-05-03.edn.gz"]
+    (->> (event-store/event-seq r)
+         count))
+
   
 
+  )
+
+;; Testing processing of data on prod -- troubleshooting issue with transformer
+
+(comment
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-1-2024-05-03.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-complete]) %))))
+  (time 
+   (def fails
+     (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-1-2024-05-03.edn.gz"]
+       (->> (event-store/event-seq r)
+            #_(take 100)
+            (pmap #(try
+                     (-> %
+                         event/deserialize
+                         gci-model/add-gci-model-fn)
+                     (catch Exception e (assoc % :exception e))))
+            (filter :exception)
+            (into [])))))
+
+  (count fails)
+  (-> fails first event/deserialize tap>)
+  (tap> (first fails))
+
+  ;; Discovered that the gene-validity-raw appender was not appending
+  ;; JSON, but rather a string of escaped JSON. need to fix this.
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_raw-2024-05-03.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (mapv (fn [e]
+                 (-> e
+                     event/deserialize
+                     (event/publish
+                      (assoc
+                       (select-keys e [::event/data ::event/key ::event/value ::event/timestamp])
+                       ::event/data (::event/value e)
+                       ::event/topic :gene-validity-complete)))))
+         tap>))  
+
+  (portal/clear)
+  
   )
 
 
 ;; New ClinVar data
 
 (def gv-w-cv-evidence-path
-    "/users/tristan/Desktop/scv-publish-raw.json")
+  "/users/tristan/Desktop/scv-publish-raw.json")
 
 (comment
   (def gv-w-cv-evidence
@@ -179,3 +227,4 @@
            (into []))))
   
   )
+

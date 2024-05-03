@@ -41,7 +41,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "prod"
+    {:platform "stage"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -81,9 +81,9 @@
                                     {:executor direct-executor})
                    :fetch-base-events-topic "gg-fb-stage-1"
                    :api-log-topic "gg-apilog-stage-1"
-                   :gene-validity-complete-topic "gg-gv-stage-1"
-                   :gene-validity-legacy-complete-topic "gg-gvl-stage-1"
-                   :gene-validity-sepio-topic "gg-gvs-stage-1"
+                   :gene-validity-complete-topic "gg-gv-stage-2"
+                   :gene-validity-legacy-complete-topic "gg-gvl-stage-2"
+                   :gene-validity-sepio-topic "gg-gvs-stage-2"
                    :base-data-topic "gg-base-stage-1"
                    :gv-transform-tx-id "gg-gv-transform-stage"
                    :fetch-base-tx-id "gg-fetch-base-stage"
@@ -100,9 +100,9 @@
                                    {:executor direct-executor})
                   :fetch-base-events-topic "gg-fb-prod-1"
                   :api-log-topic "gg-apilog-prod-1"
-                  :gene-validity-complete-topic "gg-gv-prod-1"
-                  :gene-validity-legacy-complete-topic "gg-gvl-prod-1"
-                  :gene-validity-sepio-topic "gg-gvs-prod-1"
+                  :gene-validity-complete-topic "gg-gv-prod-2"
+                  :gene-validity-legacy-complete-topic "gg-gvl-prod-2"
+                  :gene-validity-sepio-topic "gg-gvs-prod-2"
                   :base-data-topic "gg-base-prod-1"
                   :gv-transform-tx-id "gg-gv-transform-prod"
                   :fetch-base-tx-id "gg-fetch-base-prod"
@@ -340,7 +340,7 @@
   {:name :gene-validity-version-store
    :type :rocksdb
    :snapshot-handle (assoc (:fs-handle env)
-                           :path "genegraph-version-store-snapshot-v2.tar.lz4")
+                           :path "genegraph-version-store-snapshot-v3.tar.lz4")
    :path (str (:local-data-path env) "version-store")})
 
 (defn report-transform-errors-fn [event]
@@ -401,7 +401,7 @@
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
-   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v2.nq.gz")
+   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v3.nq.gz")
    :path (str (:local-data-path env) "/gv-tdb")})
 
 (def response-cache-db
@@ -496,7 +496,7 @@
 
 (def gene-validity-legacy-report-processor
   {:type :processor
-   :subscribe :gene-validity-legacy
+   :subscribe :gene-validity-legacy-complete
    :name :gene-validity-legacy-report-processor
    :backing-store :gv-tdb
    :interceptors [legacy-report/add-gci-legacy-model
@@ -693,14 +693,16 @@
                    :kafka-consumer-group (:kafka-consumer-group env))
             :gene-validity-complete
             (assoc gene-validity-complete-topic
-                   :type :kafka-producer-topic)
+                   :type :kafka-producer-topic
+                   :serialization nil) ; don't re-serialize str as json
             :gene-validity-legacy
             (assoc gene-validity-legacy-topic
                    :type :kafka-consumer-group-topic
                    :kafka-consumer-group (:kafka-consumer-group env))
             :gene-validity-legacy-complete
             (assoc gene-validity-legacy-complete-topic
-                   :type :kafka-producer-topic)}
+                   :type :kafka-producer-topic
+                   :serialization nil)} ; don't re-serialize str as json
    :processors {:gene-validity-appender
                 {:name :gene-validity-appender
                  :type :processor
