@@ -204,7 +204,11 @@
         (concat
          (event-files "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-snapshot")
          (event-files "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-missing-data")))
-
+  
+  (count
+   (concat
+    (event-files "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-snapshot")
+    (event-files "/users/tristan/data/genegraph/2023-11-07T1617/events/:gci-raw-missing-data")))
   )
 
 

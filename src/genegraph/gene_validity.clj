@@ -54,6 +54,8 @@
                                (gql-schema/merged-schema
                                 {:executor direct-executor}))}
     "dev" (assoc (env/build-environment "522856288592" ["dataexchange-genegraph"])
+                 :version 3
+                 :name "dev"
                  :function (System/getenv "GENEGRAPH_FUNCTION")
                  :kafka-user "User:2189780"
                  :kafka-consumer-group "genegraph-gene-validity-dev-13"
@@ -61,57 +63,39 @@
                              :bucket "genegraph-framework-dev"}
                  :local-data-path "/data"
                  :graphql-schema (gql-schema/merged-schema
-                                  {:executor direct-executor})
-                 :fetch-base-events-topic "gg-fb-dev-1"
-                 :api-log-topic "gg-apilog-dev-1"
-                 :gene-validity-complete-topic "gg-gv-dev-1"
-                 :gene-validity-legacy-complete-topic "gg-gvl-dev-1"
-                 :gene-validity-sepio-topic "gg-gvs-dev-1"
-                 :base-data-topic "gg-base-dev-1"
-                 :gv-transform-tx-id "gg-gv-transform-dev"
-                 :fetch-base-tx-id "gg-fetch-base-dev")
+                                  {:executor direct-executor}))
     "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
+                   :version 3
+                   :name "stage"
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
-                   :kafka-consumer-group "gg-stage-2"
+                   :kafka-consumer-group "gg-stage-3"
                    :fs-handle {:type :gcs
                                :bucket "genegraph-gene-validity-stage-1"}
                    :local-data-path "/data"
                    :graphql-schema (gql-schema/merged-schema
-                                    {:executor direct-executor})
-                   :fetch-base-events-topic "gg-fb-stage-1"
-                   :api-log-topic "gg-apilog-stage-1"
-                   :gene-validity-complete-topic "gg-gv-stage-2"
-                   :gene-validity-legacy-complete-topic "gg-gvl-stage-2"
-                   :gene-validity-sepio-topic "gg-gvs-stage-2"
-                   :base-data-topic "gg-base-stage-1"
-                   :gv-transform-tx-id "gg-gv-transform-stage"
-                   :fetch-base-tx-id "gg-fetch-base-stage"
-                   :appender-legacy-tx-id "gg-legacy-appender-stage"
-                   :appender-raw-tx-id "gg-raw-appender-stage")
+                                    {:executor direct-executor}))
     "prod" (assoc (env/build-environment "974091131481" ["dataexchange-genegraph"])
                   :function (System/getenv "GENEGRAPH_FUNCTION")
+                  :version 3
+                  :name "prod"
                   :kafka-user "User:2592237"
-                  :kafka-consumer-group "gg-prod-1"
+                  :kafka-consumer-group "gg-prod-3"
                   :fs-handle {:type :gcs
                               :bucket "genegraph-gene-validity-prod-1"}
                   :local-data-path "/data"
                   :graphql-schema (gql-schema/merged-schema
-                                   {:executor direct-executor})
-                  :fetch-base-events-topic "gg-fb-prod-1"
-                  :api-log-topic "gg-apilog-prod-1"
-                  :gene-validity-complete-topic "gg-gv-prod-2"
-                  :gene-validity-legacy-complete-topic "gg-gvl-prod-2"
-                  :gene-validity-sepio-topic "gg-gvs-prod-2"
-                  :base-data-topic "gg-base-prod-1"
-                  :gv-transform-tx-id "gg-gv-transform-prod"
-                  :fetch-base-tx-id "gg-fetch-base-prod"
-                  :appender-legacy-tx-id "gg-legacy-appender-prod"
-                  :appender-raw-tx-id "gg-raw-appender-prod")
+                                   {:executor direct-executor}))
     {}))
 
 (def env
   (merge local-env admin-env))
+
+(defn qualified-kafka-name [prefix]
+  (str prefix "-" (:name env) "-" (:version env)))
+
+(def consumer-group
+  (qualified-kafka-name "gg"))
 
 ;; Topics
 
@@ -119,7 +103,7 @@
   {:name :fetch-base-events
    :serialization :edn
    :kafka-cluster :data-exchange
-   :kafka-topic (:fetch-base-events-topic env)
+   :kafka-topic (qualified-kafka-name "gg-fb")
    :kafka-topic-config {"cleanup.policy" "compact"
                         "delete.retention.ms" "100"}})
 
@@ -127,7 +111,7 @@
   {:name :base-data
    :serialization :edn
    :kafka-cluster :data-exchange
-   :kafka-topic (:base-data-topic env)
+   :kafka-topic (qualified-kafka-name "gg-base")
    :kafka-topic-config {"cleanup.policy" "compact"
                         "delete.retention.ms" "100"}})
 
@@ -136,14 +120,14 @@
    :kafka-cluster :data-exchange
    :serialization :json
    :buffer-size 5
-   :kafka-topic (:gene-validity-complete-topic env)
+   :kafka-topic (qualified-kafka-name "gg-gv")
    :kafka-topic-config {}})
 
 (def gene-validity-sepio-topic 
   {:name :gene-validity-sepio
    :kafka-cluster :data-exchange
    :serialization ::rdf/n-triples
-   :kafka-topic (:gene-validity-sepio-topic env)
+   :kafka-topic (qualified-kafka-name "gg-gvs")
    :kafka-topic-config {}})
 
 (def api-log-topic
@@ -151,7 +135,7 @@
    :kafka-cluster :data-exchange
    :serialization :edn
    :create-producer true
-   :kafka-topic (:api-log-topic env)
+   :kafka-topic (qualified-kafka-name "gg-apilog")
    :kafka-topic-config {"retention.ms"
                         (str (* 1000 60 60 24 14))}}) ; 2 wk retention
 
@@ -182,7 +166,7 @@
 (def gene-validity-legacy-complete-topic
   {:name :gene-validity-legacy-complete
    :serialization :json
-   :kafka-topic (:gene-validity-legacy-complete-topic env)
+   :kafka-topic (qualified-kafka-name "gg-gvl")
    :kafka-cluster :data-exchange
    :kafka-topic-config {}})
 
@@ -340,7 +324,7 @@
   {:name :gene-validity-version-store
    :type :rocksdb
    :snapshot-handle (assoc (:fs-handle env)
-                           :path "genegraph-version-store-snapshot-v3.tar.lz4")
+                           :path "genegraph-version-store-snapshot-v4.tar.lz4")
    :path (str (:local-data-path env) "version-store")})
 
 (defn report-transform-errors-fn [event]
@@ -401,7 +385,7 @@
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
-   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v3.nq.gz")
+   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v4.nq.gz")
    :path (str (:local-data-path env) "/gv-tdb")})
 
 (def response-cache-db
@@ -598,13 +582,13 @@
    :topics {:fetch-base-events
             (assoc fetch-base-events-topic
                    :type :kafka-consumer-group-topic
-                   :kafka-consumer-group (:kafka-consumer-group env))
+                   :kafka-consumer-group consumer-group)
             :base-data
             (assoc base-data-topic
                    :type :kafka-producer-topic)}
    :processors {:fetch-base (assoc fetch-base-processor
                                    :kafka-cluster :data-exchange
-                                   :kafka-transactional-id (:fetch-base-tx-id env))}
+                                   :kafka-transactional-id (qualified-kafka-name "fetch-base"))}
    :http-servers gv-ready-server})
 
 
@@ -614,7 +598,7 @@
    :topics {:gene-validity-complete
             (assoc gene-validity-complete-topic
                    :type :kafka-consumer-group-topic
-                   :kafka-consumer-group (:kafka-consumer-group env)
+                   :kafka-consumer-group consumer-group
                    :buffer-size 5)
             :gene-validity-sepio
             (assoc gene-validity-sepio-topic
@@ -623,7 +607,7 @@
    :processors {:gene-validity-transform
                 (assoc transform-processor
                        :kafka-cluster :data-exchange
-                       :kafka-transactional-id (:gv-transform-tx-id env))}
+                       :kafka-transactional-id (qualified-kafka-name "gv-transform"))}
    :http-servers gv-ready-server})
 
 (def reporter-interceptor
@@ -690,7 +674,7 @@
    :topics {:gene-validity-raw
             (assoc gene-validity-raw-topic
                    :type :kafka-consumer-group-topic
-                   :kafka-consumer-group (:kafka-consumer-group env))
+                   :kafka-consumer-group consumer-group)
             :gene-validity-complete
             (assoc gene-validity-complete-topic
                    :type :kafka-producer-topic
@@ -698,7 +682,7 @@
             :gene-validity-legacy
             (assoc gene-validity-legacy-topic
                    :type :kafka-consumer-group-topic
-                   :kafka-consumer-group (:kafka-consumer-group env))
+                   :kafka-consumer-group consumer-group)
             :gene-validity-legacy-complete
             (assoc gene-validity-legacy-complete-topic
                    :type :kafka-producer-topic
@@ -708,14 +692,14 @@
                  :type :processor
                  :subscribe :gene-validity-raw
                  :kafka-cluster :data-exchange
-                 :kafka-transactional-id (:appender-raw-tx-id env)
+                 :kafka-transactional-id (qualified-kafka-name "gv-appender-gv-raw")
                  :interceptors [append-gene-validity-raw]}
                 :gene-validity-legacy-appender
                 {:name :gene-validity-legacy-appender
                  :type :processor
                  :subscribe :gene-validity-legacy
                  :kafka-cluster :data-exchange
-                 :kafka-transactional-id (:appender-legacy-tx-id env)
+                 :kafka-transactional-id (qualified-kafka-name "gv-appender-legacy")
                  :interceptors [append-gene-validity-legacy]}}
    :http-servers gv-ready-server})
 

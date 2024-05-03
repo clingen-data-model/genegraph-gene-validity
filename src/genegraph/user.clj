@@ -220,11 +220,72 @@
   ;; d35ff1da-7306-43ef-9fc4-9841e6c000d7
   ;; SMARCB1 Coffin Siris Syndrome
   (def smarcb1
-    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-stage-1-2024-04-24.edn.gz"]
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
       (->> (event-store/event-seq r)
            (filter #(re-find #"d35ff1da-7306-43ef-9fc4-9841e6c000d7"
                              (::event/value %)))
            (into []))))
+
+  (count smarcb1)
+
+  (def smarcb1-1
+    (-> smarcb1
+        first
+        (assoc ::event/format :json)
+        event/deserialize))
+  
+  
+  (defn extract-functional-alteration [e]
+    (assoc e ::fa-data
+           (->> (get-in (-> e (assoc ::event/format :json) event/deserialize)
+                        [::event/data :resourceParent :gdm :annotations])
+                (filter :experimentalData)
+                (mapcat :experimentalData)
+                (filter :functionalAlteration))))
+
+  (tap> (extract-functional-alteration smarcb1-1))
+
+  (def fa-events
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gv_events_complete_2024-03-12.edn.gz"]
+      (->> (event-store/event-seq r)
+           #_(take 100)
+           (pmap extract-functional-alteration)
+           (filter #(seq (::fa-data %)))
+           (into []))))
+
+  (def fa-map
+    (->> fa-events
+         (mapcat ::fa-data)
+         (reduce (fn [m v] (assoc m (or (:PK v) (:uuid v)) v)))))
+
+  (->> fa-map
+       vals
+       (filter #(get-in % [:functionalAlteration :normalFunctionOfGene]))
+       count)
+
+  (->> fa-map
+       vals
+       (filter #(get-in % [:functionalAlteration :normalFunctionOfGeneFreeText]))
+       count)
+
+  (->> fa-map
+       vals
+       (map #(get-in % [:functionalAlteration :normalFunctionOfGeneFreeText]))
+       (remove nil?)
+       frequencies
+       (filter #(< 2 (val %))))
+
+  (->> fa-map
+       vals
+       (remove
+        #(or (get-in % [:functionalAlteration :normalFunctionOfGeneFreeText])
+             (get-in % [:functionalAlteration :normalFunctionOfGene])))
+       first
+       tap>)
+
+  (first fa-map)
+
+  (portal/clear)
   
   )
 
