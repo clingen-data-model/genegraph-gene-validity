@@ -1,6 +1,7 @@
 (ns genegraph.user
   (:require [genegraph.framework.protocol]
             [genegraph.framework.kafka :as kafka]
+            [genegraph.framework.kafka.admin :as kafka-admin]
             [genegraph.framework.event :as event]
             [genegraph.framework.protocol :as p]
             [genegraph.framework.storage :as storage]
@@ -12,7 +13,8 @@
             [portal.api :as portal]
             [clojure.data.json :as json]
             [io.pedestal.log :as log]
-            [io.pedestal.interceptor :as interceptor])
+            [io.pedestal.interceptor :as interceptor]
+            [hato.client :as hc])
   (:import [java.time Instant LocalDate]
            [ch.qos.logback.classic Logger Level]
            [org.slf4j LoggerFactory]))
@@ -289,3 +291,146 @@
   
   )
 
+;; Clearing unused topics from Kafka clusters
+
+(comment
+
+  (with-open [admin-client (kafka-admin/create-admin-client gv/data-exchange)]
+    (run! #(try
+             (kafka-admin/delete-topic admin-client %)
+             (catch Exception e
+               (log/info :msg "Exception deleting topic "
+                         :topic %)))
+          ["gene_validity_complete-v1"
+           "gene_validity_sepio-v1"
+           "gene-validity-legacy-complete-v1"
+           "genegraph_api_log-v1"
+           "genegraph-api-log-stage-v1"
+           "genegraph-base-data-stage-v1"
+           "geengraph-base-v1"
+           "genegraph-fetch-base-events-v1"
+           "genegraph-fetch-base-stage-v1"
+           "genegraph-gene-validity-complete-stage-v1"
+           "genegraph-gene-validity-legacy-complete-stage-v1"
+           "genegraph-gene-validity-sepio-stage-v1"
+           "gg-apilog-stage-1"
+           "gg-base-stage-1"
+           "gg-fb-stage-1"
+           "gg-gv-stage-1"
+           "gg-gv-stage-2"
+           "gg-gvl-stage-1"
+           "gg-gvl-stage-2"
+           "gg-gvs-stage-1"
+           "gg-gvs-stage-2"]))
+
+  )
+
+
+;; Looking at variant info for GV variants
+
+(comment
+
+  ;; consider ranking only strong +
+  ;; consider looking at scoring of variants, at least 1+
+  ;; consider looking at balance of variants (other vs null)
+  
+  (def lof-ad-gv
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+          q (rdf/create-query "
+select ?c where { 
+?c a :sepio/GeneValidityEvidenceLevelAssertion ;
+:sepio/has-subject / :sepio/has-qualifier ?moi ;
+:sepio/has-subject / :sepio/has-subject ?gene ;
+
+:sepio/has-evidence * ?el .
+{ ?c :sepio/has-object :sepio/StrongEvidence }
+UNION  
+{ ?c :sepio/has-object :sepio/DefinitiveEvidence }
+?el :sepio/is-about-allele ?v ;
+a :sepio/NullVariantEvidenceItem .
+?v a :ga4gh/VariationDescriptor 
+FILTER NOT EXISTS 
+{
+?gdp :geno/has-location ?gene ;
+a :geno/FunctionalCopyNumberComplement . }
+}
+")]
+      (rdf/tx tdb
+        #_(mapv #(rdf/ld1-> % [:ga4gh/CanonicalReference])
+                (q tdb {:moi :hp/AutosomalDominantInheritance}))
+        (into [] (q tdb {:moi :hp/AutosomalDominantInheritance})))))
+  (count lof-ad-gv)
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (->> lof-ad-gv
+           (mapv #(rdf/ld1-> % [:sepio/has-subject
+                                :sepio/has-subject
+                                :skos/prefLabel]))
+           clojure.pprint/pprint)))
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+        q (rdf/create-query "
+select ?gdp where {
+?gdp :geno/has-location ?gene ;
+a :geno/FunctionalCopyNumberComplement . }
+")]
+    (rdf/tx tdb
+      #_(mapv #(rdf/ld1-> % [:ga4gh/CanonicalReference])
+              (q tdb {:moi :hp/AutosomalDominantInheritance}))
+      (count (into [] (q tdb )))))
+    
+
+    (count lof-ad-gv)
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (->> lof-ad-gv
+           (map ))
+      ))
+  
+  (count lof-ad-gv)
+
+  (def http-client (hc/build-http-client {}))
+  (tap>
+   (-> (hc/get "http://reg.clinicalgenome.org/allele?hgvs=NC_000010.11:g.87894077C>T"
+              {:http-client http-client})
+       :body
+       (json/read-str :key-fn keyword))
+
+)
+  (tap>
+      (-> (hc/get "http://reg.clinicalgenome.org/allele?hgvs=NM_014795.4:c.2761C>T"
+               {:http-client http-client})
+       :body
+       (json/read-str :key-fn keyword)))
+
+  (tap>
+   (-> (hc/get "http://reg.genome.network/allele/CA000318"
+               {:http-client http-client})
+       :body
+       (json/read-str :key-fn keyword)))
+  (tap>
+   (-> (hc/get "https://myvariant.info/v1/variant/chr10:g.87894077C%3ET?assembly=hg38"
+               {:http-client http-client})
+       :body
+       (json/read-str :key-fn keyword)))
+
+  (tap>
+   (-> (hc/get "https://rest.ensembl.org/vep/human/hgvs/ENSP00000401091.1:p.Tyr124Cys?content-type=application/json"
+               {:http-client http-client})
+       :body
+       (json/read-str :key-fn keyword)))
+
+  (tap>
+   (-> (hc/get "https://rest.ensembl.org/vep/human/hgvs/NM_014795.4:c.2761C>T?content-type=application/json"
+               {:http-client http-client})
+       :body
+       (json/read-str :key-fn keyword)))
+  "https://rest.ensembl.org/documentation/info/vep_hgvs_post"
+
+  "NM_014795.4:c.2761C>T"
+  "http://reg.test.genome.network/allele?hgvs=NC_000010.11:g.87894077C>T"
+
+ "http://myvariant.info/v1/variant/chr2:g.144398426G>A?assembly=hg38"
+  )
