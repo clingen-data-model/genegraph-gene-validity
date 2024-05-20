@@ -35,6 +35,7 @@
   :cg/website-legacy-id "http://dataexchange.clinicalgenome.org/terms/website_legacy_id"
   :hp/AutosomalRecessiveInheritance "http://purl.obolibrary.org/obo/HP_0000007"
   :hp/AutosomalDominantInheritance "http://purl.obolibrary.org/obo/HP_0000006"
+  :hp/XLinkedInheritance "http://purl.obolibrary.org/obo/HP_0001417"
   :geno/AlleleOrigin "http://purl.obolibrary.org/obo/GENO_0000877"
   :geno/DeNovoAlleleOrigin "http://purl.obolibrary.org/obo/GENO_0000880"
   :geno/GermlineAlleleOrigin "http://purl.obolibrary.org/obo/GENO_0000888"

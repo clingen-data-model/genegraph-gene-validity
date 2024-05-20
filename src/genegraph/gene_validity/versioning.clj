@@ -108,6 +108,9 @@
          :gene-validity/approval-date
          (approval-date (:gene-validity/model event))))
 
+(defn add-versioned-model [event]
+  event)
+
 (defn calculate-version [event]
   (let [event-with-approval-date (add-approval-date event)] 
     (if (and (has-publish-action (:gene-validity/model event))
@@ -115,7 +118,8 @@
       (-> event-with-approval-date
           add-approval-date
           add-version-map
-          store-this-version)
+          store-this-version
+          add-versioned-model)
       event-with-approval-date)))
 
 (def add-version

@@ -1,0 +1,18 @@
+{
+    "@context": {
+	"@vocab": "http://dataexchange.clinicalgenome.org/terms/",
+	"id": "@id",
+	"type": "@type",
+	"cg": "http://dataexchange.clinicalgenome.org/terms/",
+	"dc": "http://purl.org/dc/terms/",
+	"mondo": "http://purl.obolibrary.org/obo/MONDO_",
+	"hp": "http://purl.obolibrary.org/obo/HP_",
+	"hgnc": "https://identifiers.org/hgnc:",
+	"rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+	"cggv": "http://dataexchange.clinicalgenome.org/gci/",
+	"evidenceStrength": {"@type": "@vocab"},
+	"computedEvidenceStrength": {"@type": "@vocab"},
+	"specifiedBy":  {"@type": "@vocab"}
+    },
+    "@type": "EvidenceStrengthAssertion"
+}

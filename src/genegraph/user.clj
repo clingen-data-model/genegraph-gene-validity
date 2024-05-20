@@ -6,18 +6,33 @@
             [genegraph.framework.protocol :as p]
             [genegraph.framework.storage :as storage]
             [genegraph.framework.storage.rdf :as rdf]
+            [genegraph.framework.storage.rdf.jsonld :as jsonld]
             [genegraph.framework.event.store :as event-store]
             [genegraph.gene-validity :as gv]
             [genegraph.gene-validity.gci-model :as gci-model]
+            [genegraph.gene-validity.gci-model2 :as gci-model2]
+            [genegraph.gene-validity.sepio-model2 :as gvs]
             [genegraph.gene-validity.graphql.response-cache :as response-cache]
             [portal.api :as portal]
             [clojure.data.json :as json]
             [io.pedestal.log :as log]
             [io.pedestal.interceptor :as interceptor]
-            [hato.client :as hc])
+            [hato.client :as hc]
+            [clojure.java.io :as io])
   (:import [java.time Instant LocalDate]
            [ch.qos.logback.classic Logger Level]
-           [org.slf4j LoggerFactory]))
+           [org.slf4j LoggerFactory]
+           [org.apache.jena.riot RDFDataMgr Lang]
+           [org.apache.jena.riot.system JenaTitanium]
+           [org.apache.jena.rdf.model Model Statement]
+           [org.apache.jena.query Dataset DatasetFactory]
+           [org.apache.jena.sparql.core DatasetGraph]
+           [com.apicatalog.jsonld.serialization RdfToJsonld]
+           [com.apicatalog.jsonld.document Document RdfDocument]
+           [com.apicatalog.rdf Rdf]
+           [com.apicatalog.rdf.spi RdfProvider]
+           [jakarta.json JsonObjectBuilder Json]
+           [java.io StringWriter]))
 
 ;; Portal
 (comment
@@ -135,9 +150,19 @@
 
 (comment
 
-  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-stage-1-2024-04-24.edn.gz"]
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-1-2024-05-03.edn.gz"]
     (->> (event-store/event-seq r)
          count))
+
+  ;; 4463
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
+    (->> (event-store/event-seq r)
+         count))
+
+  ;; 4485
+
+  
 
   (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_raw-2024-05-03.edn.gz"]
     (->> (event-store/event-seq r)
@@ -359,6 +384,8 @@ a :geno/FunctionalCopyNumberComplement . }
         #_(mapv #(rdf/ld1-> % [:ga4gh/CanonicalReference])
                 (q tdb {:moi :hp/AutosomalDominantInheritance}))
         (into [] (q tdb {:moi :hp/AutosomalDominantInheritance})))))
+
+ 
   (count lof-ad-gv)
 
   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
@@ -433,4 +460,158 @@ a :geno/FunctionalCopyNumberComplement . }
   "http://reg.test.genome.network/allele?hgvs=NC_000010.11:g.87894077C>T"
 
  "http://myvariant.info/v1/variant/chr2:g.144398426G>A?assembly=hg38"
+  )
+
+
+
+
+
+;; Completing versioning
+(comment
+
+  (do
+    (def gv-assertion-query
+      (rdf/create-query
+       "select ?x where { ?x a :sepio/GeneValidityEvidenceLevelAssertion }"))
+    
+    (defn version-model [{::keys [assertion-iri] :as event}]
+      (rdf/statements->model
+       [[assertion-iri :cg/majorVersion (get-in event
+                                            [:gene-validity/version :major])]
+        [assertion-iri :cg/minorVersion (get-in event
+                                            [:gene-validity/version :minor])]]))
+
+    (defn source-event [{::keys [assertion-iri] :as event}]
+      (rdf/statements->model
+       [[assertion-iri
+         :cg/sourceTopic
+         (rdf/resource (str
+                        "http://dataexchange.clinicalgenome.org/topic/"
+                        (::event/kafka-topic  event "no-topic")))]
+        [assertion-iri :cg/sourceOffset (::event/offset event -1)]]))
+
+    (defn add-version-model [event]
+      (let [event-with-assertion
+            (assoc event
+                   ::assertion-iri
+                   (first (gv-assertion-query (:gene-validity/model event))))]
+        (assoc event :gene-validity/versioned-model
+               (rdf/union (:gene-validity/model event)
+                          (version-model event-with-assertion)
+                          (source-event event-with-assertion)))))
+
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
+      (->> (event-store/event-seq r)
+           (take 1)
+           (mapv #(p/process
+                   (get-in gv-test-app [:processors :gene-validity-transform])
+                   (assoc %
+                          ::event/skip-local-effects true
+                          ::event/skip-publish-effects true
+                          ::event/completion-promise (promise))))
+           (mapv add-version-model)
+           tap>)))
+  
+  
+
+  )
+
+
+;; SEPIO Model v2
+(comment
+
+  (defn add-jsonld-fn [event]
+    (assoc event
+           :gene-validity/json-ld
+           (jsonld/model->json-ld
+            (:gene-validity/model event)
+            (jsonld/json-file->doc (io/resource "frame.json")))))
+
+  (portal/clear)
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (mapv #(-> %
+                    event/deserialize
+                    gci-model2/add-gci-model-fn
+                    gvs/add-model-fn
+                    add-jsonld-fn
+                    :gene-validity/json-ld
+                    json/read-str))
+         tap>))
+
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 1)
+         (mapv #(-> %
+                    event/deserialize
+                    gci-model2/add-gci-model-fn
+                    gvs/add-model-fn
+                    :gene-validity/model))
+         (run! rdf/pp-model)))
+
+
+
+  )
+
+;; Responding to request from Erin:
+
+;; Tristan: Marina and I are hoping you can help us hone in on some curations that may be useful to us as we continue to think through curation methods for mechanism of disease.
+
+;; Can you identify for us the list of genes that have a Dosage HI score of 1, a Gene-Disease Validity classification of Moderate or higher (for an AD or XL condition), AND at least one item scored in the category "Model Systems: Non-Human Organism"?
+
+;; Let us know if you have any questions and how feasible this may be,
+;; Erin
+
+
+(comment
+  (def erins-list
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+          q (rdf/create-query "
+select ?c where { 
+?c a :sepio/GeneValidityEvidenceLevelAssertion ;
+:sepio/has-subject / :sepio/has-subject ?gene ;
+:sepio/has-evidence * ?el .
+?el a <http://purl.obolibrary.org/obo/SEPIO_0004046> .
+{ ?c :sepio/has-object :sepio/StrongEvidence }
+UNION  
+{ ?c :sepio/has-object :sepio/DefinitiveEvidence }
+UNION
+{ ?c :sepio/has-object :sepio/ModerateEvidence }
+UNION
+{ ?c :sepio/has-subject / :sepio/has-qualifier :hp/AutosomalDominantInheritance }
+UNION
+{ ?c :sepio/has-subject / :sepio/has-qualifier :hp/XLinkedInheritance }
+?gdv :geno/has-location ?gene ;
+:geno/has-member-count ?count ;
+a :geno/FunctionalCopyNumberComplement .
+FILTER ( ?count = 1 ) .
+?gdp :sepio/has-subject ?gdv .
+?gda :sepio/has-subject ?gdp ;
+:sepio/has-object :sepio/DosageMinimalEvidence .
+}
+")]
+      (rdf/tx tdb
+        (into [] (q tdb )))))
+
+  (count erins-list)
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (->> erins-list
+           (mapv #(rdf/ld1-> % [:sepio/has-subject
+                                :sepio/has-subject
+                                :skos/prefLabel]))
+           clojure.pprint/pprint)))
+
+
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (->> erins-list
+           (mapv #(rdf/ld1-> % [:geno/has-member-count]))
+           clojure.pprint/pprint)))
+
+  
+
+  (+ 1 1)
   )
