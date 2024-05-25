@@ -8,15 +8,22 @@ prefix dc: <http://purl.org/dc/terms/>
 prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 construct {
-  ?probandScoreEvidenceLine a ?lineType ;
+  ?probandScoreEvidenceLine a cg:EvidenceLine ;
+  cg:specifiedBy ?criteria ;
   cg:strengthScore ?score ;
-  cg:evidence ?individual ; # evidence about proband
+  cg:evidence ?individual ; 
   cg:calculatedScore ?calculatedScore ;
   cg:scoreStatus  ?scoreStatus ;
   dc:description ?evidenceLineDescription .
 
+  # Consider modeling as
+
+  # AlleleObservation
+  # Finding
+  # MolecularSequenceObservation -- mirroring FHIR. Let's try this one.
+  
 # Variant evidence Item
-  ?evidenceItem a ?itemType ;
+  ?evidenceItem a cg:MolecularSequenceObservation ;
   cg:allele ?variant ;
   dc:source ?article ;
   cg:alleleOrigin ?alleleOrigin ;
@@ -55,17 +62,10 @@ where {
   gci:date_created ?dateCreated ;
   gci:affiliation ?affiliation .
 
-  # maschinations due to contradicts score_status do not have gci:caseInfoType
   OPTIONAL {
-    ?evidenceLine gci:caseInfoType ?gciCaseType .
-    ?gciCaseType gcixform:hasEvidenceLineType ?evidenceLineType ;
-    gcixform:hasEvidenceItemType ?evidenceItemType .
+    ?evidenceLine gci:caseInfoType / gcixform:criteria ?criteria .
   }
-  # ProbandEvidenceLine
-  BIND(IF(BOUND(?gciCaseType), ?evidenceLineType, sepio:0004097) AS ?lineType) .
-  # ProbandWithVariantEvidenceItem
-  BIND(IF(BOUND(?gciCaseType), ?evidenceItemType, sepio:0004081) AS ?itemType) .
-
+  
   OPTIONAL {
     ?evidenceLine gci:calculatedScore ?calculatedScore .
   }

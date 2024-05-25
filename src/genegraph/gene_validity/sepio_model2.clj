@@ -17,7 +17,7 @@
    :pmbase "https://pubmed.ncbi.nlm.nih.gov/"
    :affbase "http://dataexchange.clinicalgenome.org/agent/"})
 
-(def gdm-sepio-relationships (rdf/read-rdf (str (io/resource "genegraph/gene_validity/sepio_model/gdm_sepio_relationships.ttl")) :turtle))
+(def gdm-sepio-relationships (rdf/read-rdf (str (io/resource "genegraph/gene_validity/sepio_model2/gdm_sepio_relationships.ttl")) :turtle))
 
 (rdf/declare-query construct-proposition ;done
                    construct-evidence-level-assertion ;done

@@ -527,6 +527,7 @@ a :geno/FunctionalCopyNumberComplement . }
             (:gene-validity/model event)
             (jsonld/json-file->doc (io/resource "frame.json")))))
 
+
   (portal/clear)
   (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
     (->> (event-store/event-seq r)
@@ -540,7 +541,7 @@ a :geno/FunctionalCopyNumberComplement . }
                     json/read-str))
          tap>))
 
-    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
     (->> (event-store/event-seq r)
          (take 1)
          (mapv #(-> %

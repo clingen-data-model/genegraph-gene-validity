@@ -5,14 +5,16 @@ prefix dc: <http://purl.org/dc/terms/>
 prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 construct {
-  ?evidenceLine  a ?evidenceLineType ;
+  ?evidenceLine  a cg:EvidenceLine ;
+  cg:specifiedBy ?criteria ;
   dc:description ?scoreDescription ;
   cg:evidence ?evidenceItem ;
   cg:scoreStatus ?scoreStatus ;
   cg:calculatedScore ?calculatedScore ;
   cg:strengthScore ?score .
 
-  ?evidenceItem  a ?evidenceItemType ;
+  ?evidenceItem  a cg:Finding ;
+  cg:demonstrates ?studyOutcome ;
   dc:description ?evidenceDescription ;
   dc:source ?article ;
   rdfs:label ?evidenceLabel .
@@ -89,9 +91,13 @@ where {
     BIND(IF(BOUND(?geneWithSameFuncAndDisease), gcixform:A, gcixform:B) AS ?gciSubType) .
   }
 
-  ?evidenceLineType gcixform:hasGCIType ?gciType ;
+  ?criteria a cg:Criteria ;
+  gcixform:hasGCIType ?gciType ;
+  gcixform:usedIn gcixform:Functional .
+
+  ?studyOutcome a cg:StudyOutcome ;
+  gcixform:hasGCIType ?gciType ;
   gcixform:hasGCISubType ?gciSubType ;
-  gcixform:hasEvidenceItemType ?evidenceItemType ;
   gcixform:usedIn gcixform:Functional .
 
   ?annotation gci:experimentalData ?evidenceItem ;

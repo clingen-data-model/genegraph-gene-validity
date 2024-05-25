@@ -5,14 +5,16 @@ prefix dc: <http://purl.org/dc/terms/>
 prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 construct {
-  ?evidenceLine  a ?evidenceLineType ;
+  ?evidenceLine  a cg:EvidenceLine ;
+  cg:specifiedBy ?criteria ;
   dc:description ?scoreDescription ;
   cg:evidence ?evidenceItem ;
   cg:scoreStatus ?scoreStatus ;
   cg:calculatedScore ?calculatedScore ;
   cg:strengthScore ?score .
 
-  ?evidenceItem  a ?evidenceItemType ;
+  # TODO identify functional alteration field
+  ?evidenceItem  a cg:FunctionalAlteration ;
   dc:description ?evidenceDescription ;
   dc:source ?article ;
   rdfs:label ?evidenceLabel .
@@ -42,8 +44,8 @@ where {
   ?functionalAlteration gci:functionalAlterationType ?gciType ;
   gci:evidenceForNormalFunction ?evidenceDescription .
 
-  ?evidenceLineType gcixform:hasGCIType ?gciType ;
-  gcixform:hasEvidenceItemType ?evidenceItemType ;
+  ?criteria a cg:Criteria ;
+  gcixform:hasGCIType ?gciType ;
   gcixform:usedIn gcixform:FunctionalAlteration .
 
   ?annotation gci:experimentalData ?evidenceItem ;

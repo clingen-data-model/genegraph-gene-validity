@@ -6,124 +6,126 @@
 @prefix gci: <http://dataexchange.clinicalgenome.org/gci/> .
 @prefix cg: <http://dataexchange.clinicalgenome.org/terms/> .
 @prefix sepio:   <http://purl.obolibrary.org/obo/SEPIO_> .
+@prefix mi:   <http://purl.obolibrary.org/obo/MI_> .
 @base <http://dataexchange.clinicalgenome.org/gcixform> .
 
 
 # Proband types
-gci:PREDICTED_OR_PROVEN_NULL_VARIANT :hasEvidenceLineType sepio:0004079 ;
-    :hasEvidenceItemType sepio:0004034 .
+gci:PREDICTED_OR_PROVEN_NULL_VARIANT :criteria cg:GeneValidityProbandADNullCriteria .
+
+gci:VARIANT_IS_DE_NOVO :criteria cg:GeneValidityProbandADDeNovoCriteria .
     
-gci:VARIANT_IS_DE_NOVO :hasEvidenceLineType sepio:0004078 ;
-    :hasEvidenceItemType sepio:0004033 .
+gci:OTHER_VARIANT_TYPE_WITH_GENE_IMPACT :criteria
+cg:GeneValidityProbandADNonNullCriteria .
     
-gci:OTHER_VARIANT_TYPE_WITH_GENE_IMPACT :hasEvidenceLineType sepio:0004080 ;
-    :hasEvidenceItemType sepio:0004035 .
+gci:TWO_VARIANTS_WITH_GENE_IMPACT_IN_TRANS :criteria cg:GeneValidityProbandARNonNullCriteria .
     
-gci:TWO_VARIANTS_WITH_GENE_IMPACT_IN_TRANS :hasEvidenceLineType sepio:0004019 ;
-    :hasEvidenceItemType sepio:0004037 .
-    
-gci:TWO_VARIANTS_IN_TRANS_WITH_ONE_DE_NOVO :hasEvidenceLineType sepio:0004018 ;
-    :hasEvidenceItemType sepio:0004038 .
+gci:TWO_VARIANTS_IN_TRANS_WITH_ONE_DE_NOVO :criteria
+cg:GeneValidityProbandARDeNovoNullVariantCriteria .
 
 # Variant types
 
-gci:PREDICTED_OR_PROVEN_NULL :hasEvidenceLineType sepio:0004120 ;
-    :hasEvidenceItemType sepio:0004117 .
+gci:PREDICTED_OR_PROVEN_NULL :criteria cg:GeneValidityNullVariantCriteria .
 
-gci:OTHER_VARIANT_TYPE :hasEvidenceLineType sepio:0004121 ;
-    :hasEvidenceItemType sepio:0004118 .
-
-
+gci:OTHER_VARIANT_TYPE :criteria cg:GeneValidityNonNullVariantCriteria .
+    
 # Variant types
 
 ## TODO
 
 # biochemical function A
-sepio:0004180 :hasEvidenceItemType sepio:0004041 ;
+cg:GeneValidityBiochemicalFunctionCriteria a cg:Criteria ;
+    :hasGCIType :BiochemicalFunction ;
+    :usedIn :Functional .
+
+cg:BiochemicalFunctionA a cg:StudyOutcome ;
     :hasGCIType :BiochemicalFunction ;
     :hasGCISubType :A ;
     :usedIn :Functional .
 
-# biochemical function B
-sepio:0004181 :hasEvidenceItemType sepio:0004041 ;
+cg:BiochemicalFunctionB a cg:StudyOutcome ;
     :hasGCIType :BiochemicalFunction ;
     :hasGCISubType :B ;
     :usedIn :Functional .
 
-# protein interaction genetic interaction (MI:0208)
-sepio:0004182 :hasEvidenceItemType sepio:0004042 ;
+### Protein Interaction
+cg:GeneValidityProteinInteractionCriteria a cg:Criteria ;
+    :hasGCIType :ProteinInteraction ;
+    :usedIn :Functional .
+
+mi:0208 a cg:StudyOutcome ;
     :hasGCIType :ProteinInteraction ;
     :hasGCISubType :GeneticInteraction ;
     :usedIn :Functional .
 
-# protein interaction negative genetic interaction (MI:0933)
-sepio:0004183 :hasEvidenceItemType sepio:0004042 ;
+mi:0933 a cg:StudyOutcome ;
     :hasGCIType :ProteinInteraction ;
     :hasGCISubType :NegativeGeneticInteraction ;
     :usedIn :Functional .
 
-# protein interaction physical association (MI:0915)
-sepio:0004184 :hasEvidenceItemType sepio:0004042 ;
+mi:0915 a cg:StudyOutcome ;
     :hasGCIType :ProteinInteraction ;
     :hasGCISubType :PhysicalAssociation ;
     :usedIn :Functional .
 
-# protein interaction positive genetic interaction (MI:0935)
-sepio:0004185 :hasEvidenceItemType sepio:0004042 ;
+mi:0935 a cg:StudyOutcome ;
     :hasGCIType :ProteinInteraction ;
     :hasGCISubType :PositiveGeneticInteraction ;
     :usedIn :Functional .
 
-# gene expression A
-sepio:0004188 :hasEvidenceItemType sepio:0004043 ;
+### Gene Expression
+
+cg:GeneValidityGeneExpressionCriteria a cg:Criteria ;
+    :hasGCIType :Expression ;
+    :usedIn :Functional .
+
+cg:GeneExpressionA  a cg:StudyOutcome ;
     :hasGCIType :Expression ;
     :hasGCISubType :A ;
     :usedIn :Functional .
 
-# gene expression B
-sepio:0004189 :hasEvidenceItemType sepio:0004043 ;
+cg:GeneExpressionB a cg:StudyOutcome ;
     :hasGCIType :Expression ;
     :hasGCISubType :B ;
     :usedIn :Functional .
 
-# patient cell functional alteration
-sepio:0004025 :hasEvidenceItemType sepio:0004044 ;
+### patient cell functional alteration
+cg:GeneValidityPatientCellFunctionalAlterationCriteria a cg:Criteria ;
     :hasGCIType :PatientCells ;
     :usedIn :FunctionalAlteration .
 
-# non-patient cell functional alteration
-sepio:0004026 :hasEvidenceItemType sepio:0004045 ;
-    :hasGCIType :NonPatientCells ;
+### non-patient cell functional alteration
+cg:GeneValidityNonPatientCellFunctionalAlterationCriteria a cg:Criteria ;
+    :hasGCIType :PatientCells ;
     :usedIn :FunctionalAlteration .
-    
+
 # non-human model
-sepio:0004027 :hasEvidenceItemType sepio:0004046 ;
+cg:GeneValidityNonHumanModelOrganismCriteria a cg:Criteria ;
     :hasGCIType :NonHumanModel ;
     :usedIn :ModelSystems .
-    
+
 # cell culture model
-sepio:0004028 :hasEvidenceItemType sepio:0004047 ;
+cg:GeneValidityCellCultureModelOrganismCriteria a cg:Criteria ;
     :hasGCIType :CellCultureModel ;
     :usedIn :ModelSystems .
-    
+
 # human rescue
-sepio:0004029 :hasEvidenceItemType sepio:0004048 ;
+cg:GeneValidityHumanRescueCriteria a cg:Criteria ;
     :hasGCIType :Human ;
     :usedIn :Rescue .
-    
+
 # non-human model rescue
-sepio:0004030 :hasEvidenceItemType sepio:0004049 ;
+cg:GeneValidityNonHumanRescueCriteria a cg:Criteria ;
     :hasGCIType :NonHumanModel ;
     :usedIn :Rescue .
 
-#TODO Validate this works prior to rearchitecture
 # rescue in cell culture
-sepio:0004031 :hasEvidenceItemType sepio:0004050 ;
+cg:GeneValidityCellCultureRescueCriteria a cg:Criteria ;
     :hasGCIType :CellCultureModel ;
     :usedIn :Rescue .
-    
+
 # rescue in patient cells
-sepio:0004032 :hasEvidenceItemType sepio:0004051 ;
+cg:GeneValidityPatientCellRescueCriteria a cg:Criteria ;
     :hasGCIType :PatientCells ;
     :usedIn :Rescue .
 
@@ -136,60 +138,49 @@ sepio:0004021 :hasEvidenceItemType sepio:0004040 ;
 
 #### Segregation
 
-# TODO validate segregation
-# # :sepio/SegregationCriterionAssessment
+#### May be able to delete this ...     
+sepio:0004012 :supportingCriteriaType sepio:0000247 .
 
-sepio:0004012 :hasEvidenceLineType sepio:0000247 .
 
-# sepio:0004012 :hasEvidenceLineType sepio:0004090, sepio:0004091 .
 
-# # single gene
-# sepio:0004090 :hasEvidenceItemType sepio:0004085 ;
-#     :hasGCIType :CandidateGeneSequencing .
-
-# # multi-locus
-# sepio:0004091 :hasEvidenceItemType sepio:0004086 ;
-#     :hasGCIType :ExomeSequencing .
-    
 #### Connections to leaf-node evidence lines
-sepio:0004002 :hasEvidenceLineType sepio:0004127 .
+
+# unscoreable evidence -- think about this one.
+sepio:0004002 :supportingCriteriaType sepio:0004127 .
 
 # :sepio/OverallGeneticEvidenceEvidenceLine
-sepio:0004005 :hasEvidenceLineType sepio:0004120, sepio:0004121 , sepio:0004097 , sepio:0004174 .
+cg:GeneValidityOverallGeneticEvidenceCriteria :supportingCriteriaType cg:GeneValidityNullVariantCriteria, cg:GeneValidityNonNullVariantCriteria ,  cg:GeneValidityMaximumProbandScoreCriteria .
 
 # :sepio/AutosomalDominantOtherVariantCriterionAssessment
-sepio:0004011 :hasEvidenceLineType sepio:0004080 .
+cg:GeneValidityOverallAutosomalDominantOtherVariantEvidenceCriteria :supportingCriteriaType cg:GeneValidityProbandADNonNullCriteria .
 
 # :sepio/AutosomalDominantNullVariantCriterionAssessment
-sepio:0004010 :hasEvidenceLineType sepio:0004079 .
+cg:GeneValidityOverallAutosomalDominantNullVariantEvidenceCriteria :supportingCriteriaType cg:GeneValidityProbandADNullCriteria .
 
 # :sepio/AutosomalDominantDeNovoVariantCriterionAssessment
-sepio:0004009 :hasEvidenceLineType sepio:0004078 .
+cg:GeneValidityOverallAutosomalDominantDeNovoVariantEvidenceCriteria :supportingCriteriaType cg:GeneValidityProbandADDeNovoCriteria .
 
 # :sepio/AutosomalRecessiveVariantCriterionAssessment
-sepio:0004008 :hasEvidenceLineType sepio:0004019 , sepio:0004018 .
+cg:GeneValidityOverallAutosomalRecessiveVariantEvidenceCriteria :supportingCriteriaType cg:GeneValidityProbandARNonNullCriteria , cg:GeneValidityProbandARDeNovoNullVariantCriteria .
 
 # # :sepio/CaseControlEvidenceCriterionAssessment
-sepio:0004007 :hasEvidenceLineType sepio:0004020, sepio:0004021 .
+sepio:0004007 :supportingCriteriaType sepio:0004020, sepio:0004021 .
 
 # :sepio/FunctionalCriterionAssessment
-sepio:0004013 :hasEvidenceLineType sepio:0004180,
-        sepio:0004181,
-        sepio:0004182,
-        sepio:0004183,
-        sepio:0004184,
-        sepio:0004185,
-        sepio:0004188,
-        sepio:0004189  .
+cg:GeneValidityOverallFunctionalEvidenceCriteria :supportingCriteriaType cg:GeneValidityBiochemicalFunctionCriteria ,
+        cg:GeneValidityProteinInteractionCriteria ,
+        cg:GeneValidityGeneExpressionCriteria .
+        
 
 # :sepio/FunctionalAlterationCriterionAssessment
-sepio:0004014 :hasEvidenceLineType sepio:0004025 , sepio:0004026 .
+cg:GeneValidityOverallFunctionalAlterationEvidenceCriteria :supportingCriteriaType cg:GeneValidityPatientCellFunctionalAlterationCriteria , cg:GeneValidityNonPatientCellFunctionalAlterationCriteria .
 
 # :sepio/ModelAndRescueCriterionAssessment
-sepio:0004015 :hasEvidenceLineType sepio:0004027 ,
-        sepio:0004028 , 
-        sepio:0004029 , 
-        sepio:0004030 , 
-        sepio:0004031 , 
-        sepio:0004032 .
+cg:GeneValidityOverallModelAndRescueEvidenceCriteria :supportingCriteriaType cg:GeneValidityNonHumanModelOrganismCriteria ,
+        cg:GeneValidityCellCultureModelOrganismCriteria ,
+        cg:GeneValidityHumanRescueCriteria ,
+        cg:GeneValidityNonHumanRescueCriteria ,
+        cg:GeneValidityCellCultureRescueCriteria ,
+        cg:GeneValidityPatientCellRescueCriteria .
+        
     

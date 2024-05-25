@@ -5,7 +5,8 @@ prefix dc: <http://purl.org/dc/terms/>
 prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 construct {
-  ?evidenceLine  a ?evidenceLineType ;
+  ?evidenceLine a cg:EvidenceLine ;
+  cg:specifiedBy ?criteria ;
   dc:description ?scoreDescription ;
   cg:evidence ?evidenceItem ;
   # gci:type ?gciType ; ; TODO find out what this is all about...
@@ -13,7 +14,9 @@ construct {
   cg:calculatedScore ?calculatedScore ;
   cg:strengthScore ?score .
 
-  ?evidenceItem  a ?evidenceItemType ;
+  # TODO Grab the model organism from the data
+  ?evidenceItem a cg:Finding ;
+  cg:demonstrates cg:ProteinAlterationDisruptsOrganismFunction ;
   dc:description ?evidenceDescription ;
   dc:source ?article ;
   rdfs:label ?evidenceLabel .
@@ -39,14 +42,11 @@ where {
   gci:modelSystems ?gciModelSystem  ;
   gci:label ?evidenceLabel .
   
-  # ?gciEvidence gci:modelSystems ?gciModelSystem  ;
-  # gci:label ?evidenceLabel .
-
   ?gciModelSystem gci:explanation ?evidenceDescription ;
   gci:modelSystemsType ?gciType .
 
-  ?evidenceLineType gcixform:hasGCIType ?gciType ;
-  gcixform:hasEvidenceItemType ?evidenceItemType ;
+  ?criteria a cg:Criteria ;
+  gcixform:hasGCIType ?gciType ;
   gcixform:usedIn gcixform:ModelSystems .
   
   ?annotation gci:experimentalData ?evidenceItem ;

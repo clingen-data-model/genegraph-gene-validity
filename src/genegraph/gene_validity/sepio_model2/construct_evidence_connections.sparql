@@ -1,10 +1,11 @@
 prefix gci: <http://dataexchange.clinicalgenome.org/gci/>
 prefix gcixform: <http://dataexchange.clinicalgenome.org/gcixform/>
+prefix cg: <http://dataexchange.clinicalgenome.org/terms/> 
 construct {
-  ?criterionAssessment :sepio/has-evidence ?evidenceLine .
+  ?parent cg:evidence ?child .
 }
 where {
-  ?criterionAssessment a ?criterionAssessmentType .
-  ?evidenceLine a ?evidenceLineType .
-  ?criterionAssessmentType gcixform:hasEvidenceLineType ?evidenceLineType .
+  ?parent cg:specifiedBy ?parentCriteria .
+  ?child cg:specifiedBy ?childCriteria .
+  ?parentCriteria gcixform:supportingCriteriaType ?childCriteria .
 }
