@@ -59,6 +59,7 @@
             "alteredClassification" {"@type" "@vocab"}
             "hpoIdInDiagnosis" {"@type" "@id"}
             "diseaseId" {"@type" "@id"}
+            "disease" {"@type" "@id"}
             "caseInfoType" {"@type" "@id"}
             "variantType" {"@type" "@id"}
             "caseControl" {"@type" "@id"}
@@ -92,8 +93,8 @@
             "Case control" "gcixform:CaseControl"
 
             ;; Case control
-            "Aggregate variant analysis" "gcixform:AggregateVariantAnalysis"
-            "Single variant analysis" "gcixform:SingleVariantAnalysis"
+            "Aggregate variant analysis" "cg:AggregateVariantAnalysis"
+            "Single variant analysis" "cg:SingleVariantAnalysis"
 
             ;; segregation
 
@@ -192,10 +193,10 @@
 
             ;; Consider restructring this part of the model
             ;; ageType
-            "Death" "http://purl.obolibrary.org/obo/SEPIO_0004562"
-            "Diagnosis" "http://purl.obolibrary.org/obo/SEPIO_0004563"
-            "Onset" "http://purl.obolibrary.org/obo/SEPIO_0004564"
-            "Report" "http://purl.obolibrary.org/obo/SEPIO_0004565"
+            "Death" "cg:AgeAtDeath"
+            "Diagnosis" "cg:AgeAtDiagnosis"
+            "Onset" "cg:AgeAtOnset"
+            "Report" "cg:AgeAtReport"
  
             ;; ageUnit
             ;; "Days" "http://purl.obolibrary.org/obo/SEPIO_0004552"
@@ -214,11 +215,11 @@
 
             ;; Consider revisiting this part of the model
             ;; scoreStatus
-            "Contradicts" "http://purl.obolibrary.org/obo/SEPIO_0004581"
-            "Review" "http://purl.obolibrary.org/obo/SEPIO_0004582"
-            "Score" "http://purl.obolibrary.org/obo/SEPIO_0004583"
-            "Supports" "http://purl.obolibrary.org/obo/SEPIO_0004584"
-            "none" "http://purl.obolibrary.org/obo/SEPIO_0004585"
+            "Contradicts" "cg:Contradicts"
+            "Review" "cg:Inconclusive"
+            "Score" "cg:Supports"
+            "Supports" "cg:Supports"
+            "none" "cg:Inconclusive"
 
             ;; testingMethods
             ;; "Chromosomal microarray" "http://purl.obolibrary.org/obo/SEPIO_0004591"

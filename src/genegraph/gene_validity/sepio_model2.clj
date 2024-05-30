@@ -46,6 +46,8 @@
                    unlink-segregations-when-no-proband-and-lod-scores
                    add-legacy-website-id
                    unpublish-evidence-level-assertion
+                   prune-empty-evidence-lines
+                   prune-empty-evidence-ids
                    construct-scv)
 
 (def has-affiliation-query
@@ -184,7 +186,9 @@
     (-> linked-model
         add-proband-scores
         unlink-variant-scores-when-proband-scores-exist
-        unlink-segregations-when-no-proband-and-lod-scores)))
+        unlink-segregations-when-no-proband-and-lod-scores
+        prune-empty-evidence-lines
+        prune-empty-evidence-ids)))
 
 (defn add-model-fn [event]
   (assoc event

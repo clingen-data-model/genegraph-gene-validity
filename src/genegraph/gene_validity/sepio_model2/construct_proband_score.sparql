@@ -13,7 +13,7 @@ construct {
   cg:strengthScore ?score ;
   cg:evidence ?individual ; 
   cg:calculatedScore ?calculatedScore ;
-  cg:scoreStatus  ?scoreStatus ;
+  cg:direction  ?scoreStatus ;
   dc:description ?evidenceLineDescription .
 
   # Consider modeling as

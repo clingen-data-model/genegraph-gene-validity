@@ -9,7 +9,7 @@ construct {
   cg:specifiedBy ?criteria ;
   dc:description ?scoreDescription ;
   cg:evidence ?evidenceItem ;
-  cg:scoreStatus ?scoreStatus ;
+  cg:direction ?scoreStatus ;
   cg:calculatedScore ?calculatedScore ;
   cg:strengthScore ?score .
 

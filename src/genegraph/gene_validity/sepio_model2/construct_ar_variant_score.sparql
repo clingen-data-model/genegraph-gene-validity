@@ -14,7 +14,7 @@ prefix cg: <http://dataexchange.clinicalgenome.org/terms/>
 construct {
   ?probandScoreEvidenceLine a cg:EvidenceLine ;
   cg:specifiedBy cg:GeneValidityMaximumProbandScoreCriteria ;
-  cg:scoreStatus ?scoreStatus ;
+  cg:direction ?scoreStatus ;
   cg:evidence ?individual , ?variantEvidenceLine .
 } where {
 

@@ -9,8 +9,7 @@ construct {
   cg:specifiedBy ?criteria ;
   dc:description ?scoreDescription ;
   cg:evidence ?evidenceItem ;
-  # gci:type ?gciType ; ; TODO find out what this is all about...
-  cg:scoreStatus ?scoreStatus ;
+  cg:direction ?scoreStatus ;
   cg:calculatedScore ?calculatedScore ;
   cg:strengthScore ?score .
 

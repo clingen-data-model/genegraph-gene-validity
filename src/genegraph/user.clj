@@ -529,17 +529,46 @@ a :geno/FunctionalCopyNumberComplement . }
 
 
   (portal/clear)
+
+  (defn write-json-ld [event]
+    )
   (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
     (->> (event-store/event-seq r)
          (take 1)
-         (mapv #(-> %
-                    event/deserialize
-                    gci-model2/add-gci-model-fn
-                    gvs/add-model-fn
-                    add-jsonld-fn
-                    :gene-validity/json-ld
-                    json/read-str))
+         (map #(-> %
+                   event/deserialize
+                   gci-model2/add-gci-model-fn
+                   gvs/add-model-fn
+                   add-jsonld-fn))
+         (map #(assoc % ::parsed-json-ld (json/read-str (:gene-validity/json-ld %))))
          tap>))
+  
+  (def cc-example
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"ab28e09c"
+                             (::event/value %)))
+           last)))
+
+
+  (-> cc-example
+      event/deserialize
+      gci-model2/add-gci-model-fn
+      gvs/add-model-fn
+      add-jsonld-fn
+      :gene-validity/json-ld
+      json/read-str
+      tap>)
+  
+  (portal/clear)
+  ;; 34edc78f-ee22-4393-aceb-70f26ed8f35b_cc_evidence_item
+  (-> cc-example
+      event/deserialize
+      gci-model2/add-gci-model-fn
+      gvs/add-model-fn
+      :gene-validity/model
+      rdf/to-turtle
+      println)
 
   (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
     (->> (event-store/event-seq r)
@@ -548,10 +577,24 @@ a :geno/FunctionalCopyNumberComplement . }
                     event/deserialize
                     gci-model2/add-gci-model-fn
                     gvs/add-model-fn
-                    :gene-validity/model))
-         (run! rdf/pp-model)))
+                    :gene-validity/model
+                    .size))))
 
 
+  (def cc-assertions
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+          q (rdf/create-query "
+select ?c where { 
+?c a :sepio/GeneValidityEvidenceLevelAssertion ;
+:sepio/has-evidence * / a :sepio/0004039 .
+}
+")]
+      (rdf/tx tdb
+        (into [] (q tdb)))))
+
+  (count cc-assertions)
+
+  (str (first cc-assertions))
 
   )
 

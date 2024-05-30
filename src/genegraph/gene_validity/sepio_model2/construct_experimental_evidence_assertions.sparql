@@ -7,20 +7,20 @@ construct
   
   ?experimentalEvidenceLine a cg:EvidenceLine ;
   cg:specifiedBy cg:GeneValidityOverallExperimentalEvidenceCriteria ;
-  cg:evidenceScore ?experimentalEvidenceTotal ;
+  cg:strengthScore ?experimentalEvidenceTotal ;
   cg:evidence ?functionalEvidenceLine, ?functionalAlterationEvidenceLine, ?modelAndRescueEvidenceLine .
 
   ?functionalEvidenceLine a cg:EvidenceLine ;
   cg:specifiedBy cg:GeneValidityOverallFunctionalEvidenceCriteria ;
-  cg:evidenceScore ?functionTotal .
+  cg:strengthScore ?functionTotal .
 
   ?functionalAlterationEvidenceLine a cg:EvidenceLine ;
   cg:specifiedBy cg:GeneValidityOverallFunctionalAlterationEvidenceCriteria ;
-  cg:evidenceScore ?functionalAlterationTotal .  
+  cg:strengthScore ?functionalAlterationTotal .  
 
   ?modelAndRescueEvidenceLine a cg:EvidenceLine ;
   cg:specifiedBy cg:GeneValidityOverallModelAndRescueEvidenceCriteria ;
-  cg:evidenceScore  ?modelsRescueTotal .
+  cg:strengthScore  ?modelsRescueTotal .
 
 }
 where

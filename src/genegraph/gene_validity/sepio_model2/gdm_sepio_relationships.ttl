@@ -96,7 +96,7 @@ cg:GeneValidityPatientCellFunctionalAlterationCriteria a cg:Criteria ;
 
 ### non-patient cell functional alteration
 cg:GeneValidityNonPatientCellFunctionalAlterationCriteria a cg:Criteria ;
-    :hasGCIType :PatientCells ;
+    :hasGCIType :NonPatientCells ;
     :usedIn :FunctionalAlteration .
 
 # non-human model
@@ -130,11 +130,11 @@ cg:GeneValidityPatientCellRescueCriteria a cg:Criteria ;
     :usedIn :Rescue .
 
 #### Case Control
-sepio:0004020 :hasEvidenceItemType sepio:0004039 ;
-    :hasGCIType :SingleVariantAnalysis .
-    
-sepio:0004021 :hasEvidenceItemType sepio:0004040 ;
-    :hasGCIType :AggregateVariantAnalysis .
+cg:GeneValidityCaseControlSingleVariantAnalysisCriteria a cg:Criteria ;
+    :hasGCIType cg:SingleVariantAnalysis .
+
+cg:GeneValidityCaseControlAggregateVariantAnalysisCriteria a cg:Criteria ;
+    :hasGCIType cg:AggregateVariantAnalysis .
 
 #### Segregation
 
@@ -163,8 +163,11 @@ cg:GeneValidityOverallAutosomalDominantDeNovoVariantEvidenceCriteria :supporting
 # :sepio/AutosomalRecessiveVariantCriterionAssessment
 cg:GeneValidityOverallAutosomalRecessiveVariantEvidenceCriteria :supportingCriteriaType cg:GeneValidityProbandARNonNullCriteria , cg:GeneValidityProbandARDeNovoNullVariantCriteria .
 
-# # :sepio/CaseControlEvidenceCriterionAssessment
-sepio:0004007 :supportingCriteriaType sepio:0004020, sepio:0004021 .
+# :sepio/CaseControlEvidenceCriterionAssessment
+cg:GeneValidityOverallCaseControlEvidenceCriteria :supportingCriteriaType
+    cg:GeneValidityCaseControlSingleVariantAnalysisCriteria ,
+        cg:GeneValidityCaseControlAggregateVariantAnalysisCriteria .
+        
 
 # :sepio/FunctionalCriterionAssessment
 cg:GeneValidityOverallFunctionalEvidenceCriteria :supportingCriteriaType cg:GeneValidityBiochemicalFunctionCriteria ,

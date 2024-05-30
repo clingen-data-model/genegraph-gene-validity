@@ -8,12 +8,12 @@ construct {
   ?classification a cg:EvidenceStrengthAssertion ;
   cg:subject ?proposition ;
   cg:evidenceStrength ?evidencelevel ;
-  cg:contribution ?contribution , ?publishContribution ;
+  cg:contributions ?contribution , ?publishContribution ;
   dc:description ?description ;
-  cg:computedEvidenceStrength ?autoEvidenceLevel ;
+  cg:calculatedEvidenceStrength ?autoEvidenceLevel ;
   cg:specifiedBy ?sopVersion ;
   cg:curationReasons ?curation_reasons ;
-  cg:evidenceScore ?evidencePointsTotal .
+  cg:strengthScore ?evidencePointsTotal .
 
   ?contribution cg:agent ?affiliation ;
   cg:role cg:Approver ;

@@ -12,7 +12,7 @@ construct {
   cg:strengthScore ?score ;
   cg:evidence ?evidenceItem , ?functionEvidenceItem ; # evidence about variant
   cg:calculatedScore ?resultCalculatedScore ;
-  cg:scoreStatus ?scoreStatus ;
+  cg:direction ?scoreStatus ;
   dc:description ?evidenceLineDescription .
 
 # Variant evidence item

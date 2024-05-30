@@ -1,5 +1,8 @@
 prefix gci: <http://dataexchange.clinicalgenome.org/gci/>
 prefix cg: <http://dataexchange.clinicalgenome.org/terms/>
+prefix mondo: <http://purl.obolibrary.org/obo/MONDO_>
+prefix hp: <http://purl.obolibrary.org/obo/HP_>
+
 construct 
 {
   ?gdm a cg:GeneValidityProposition . 
