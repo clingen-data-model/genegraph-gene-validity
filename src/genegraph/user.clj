@@ -15,6 +15,7 @@
             [genegraph.gene-validity.graphql.response-cache :as response-cache]
             [portal.api :as portal]
             [clojure.data.json :as json]
+            [clojure.data.csv :as csv]
             [io.pedestal.log :as log]
             [io.pedestal.interceptor :as interceptor]
             [hato.client :as hc]
@@ -32,7 +33,8 @@
            [com.apicatalog.rdf Rdf]
            [com.apicatalog.rdf.spi RdfProvider]
            [jakarta.json JsonObjectBuilder Json]
-           [java.io StringWriter]))
+           [java.io StringWriter]
+           [java.util.concurrent Semaphore]))
 
 ;; Portal
 (comment
@@ -649,13 +651,296 @@ FILTER ( ?count = 1 ) .
            clojure.pprint/pprint)))
 
 
-    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
     (rdf/tx tdb
       (->> erins-list
            (mapv #(rdf/ld1-> % [:geno/has-member-count]))
            clojure.pprint/pprint)))
 
-  
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+        query (rdf/create-query
+               "
+select ?source where {
+?assertion :sepio/has-evidence * / :dc/source ?source
+}")]
+    (rdf/tx tdb
+      (->> (take 1 erins-list)
+           (mapv #(query tdb {:assertion %}))
+           clojure.pprint/pprint)))
+
 
   (+ 1 1)
+  )
+
+
+;; Publishing test data to stage topic
+
+(def test-data-publish-app-def
+  {:type :genegraph-app
+   :kafka-clusters {:data-exchange gv/data-exchange}
+   :topics {:gene-validity-complete
+            (assoc gv/gene-validity-complete-topic
+                   :type :kafka-producer-topic
+                   :create-producer true)
+            :gene-validity-legacy-complete
+            (assoc gv/gene-validity-legacy-complete-topic
+                   :type :kafka-producer-topic
+                   :create-producer true)}})
+
+(comment
+  (def scv-raw (-> "/users/tristan/Desktop/scv-publish-raw.json"
+                   slurp
+                   json/read-str))
+  (def scv-legacy (-> "/users/tristan/Desktop/scv-publish.json"
+                      slurp
+                      json/read-str))
+
+  (def test-data-publish-app (p/init test-data-publish-app-def))
+
+  (p/start test-data-publish-app)
+  (p/stop test-data-publish-app)
+
+  (p/publish (get-in test-data-publish-app [:topics :gene-validity-legacy-complete])
+             {::event/data scv-legacy
+              ::event/key "scv-test-data-1"})
+
+  (p/publish (get-in test-data-publish-app [:topics :gene-validity-complete])
+             {::event/data scv-raw
+              ::event/key "scv-test-data-1"})
+
+  
+  (get-in test-data-publish-app [:topics :gene-validity-complete])
+  
+  
+
+  (tap> scv-raw)
+  
+  
+
+  )
+
+;; Select test data for sepio test set
+
+(def output-dir "/Users/tristan/data/genegraph-neo/gv-snapshot/")
+
+(def has-assertion-query
+  (rdf/create-query "select ?x where { ?x a :cg/EvidenceStrengthAssertion }"))
+
+(defn add-jsonld-with-frame-fn [event frame]
+  (assoc event
+         :gene-validity/json-ld
+         (jsonld/model->json-ld (:gene-validity/model event) frame)))
+
+(defn event->jsonld [event frame]
+  (-> event
+      event/deserialize
+      gci-model2/add-gci-model-fn
+      gvs/add-model-fn
+      (add-jsonld-with-frame-fn frame)))
+
+(defn write-json-ld [event frame dir sem]
+  (.acquire sem)
+  (Thread/startVirtualThread
+   #(let [path (str dir (::event/key event) ".json")
+          processed-event (event->jsonld event frame)]
+      (when (seq (has-assertion-query
+                      (:gene-validity/model processed-event)))
+              (spit path (:gene-validity/json-ld processed-event)))
+      (.release sem))))
+
+;; generate full snapshot
+(comment
+  (time
+   (let [gv-jsonld-frame (jsonld/json-file->doc (io/resource "frame.json"))
+         sem (Semaphore. 20)]
+     (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-06-04.edn.gz"]
+       (->> (event-store/event-seq r)
+            (run! #(write-json-ld % gv-jsonld-frame output-dir sem))
+            #_(run! #(-> %
+                       (event->jsonld gv-jsonld-frame)
+                       :gene-validity/model
+                       rdf/to-turtle
+                       println))))))
+
+  (+ 1 1)
+
+  )
+
+
+(comment
+  ;; SOP 6/7 data, SOP 8/9/10 data
+  ;; All modes of inheritance for each SOP set
+  ;; All different kinds of experimental data
+  ;; Case control
+  ;; Segregation
+
+  ;; F5, SOP6 AD, incl CC data
+  (def f5-example
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-05-13.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"ab28e09c"
+                             (::event/value %)))
+           last)))
+
+  ;; ZEB2
+
+
+
+  (def f5-example
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-06-04.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"ab28e09c"
+                             (::event/value %)))
+           last)))
+
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-06-04.edn.gz"]
+    (->> (event-store/event-seq r)
+         (filter #(re-find #"ab28e09c"
+                           (::event/value %)))
+         last))
+
+  (defn add-jsonld-with-frame-fn [event frame]
+    (assoc event
+           :gene-validity/json-ld
+           (jsonld/model->json-ld (:gene-validity/model event) frame)))
+
+  (defn event->jsonld [event frame]
+    (-> event
+        event/deserialize
+        gci-model2/add-gci-model-fn
+        gvs/add-model-fn
+        (add-jsonld-with-frame-fn frame)))
+
+  (defn write-json-ld [event frame dir]
+    (let [path (str output-dir (::event/key event) ".json")]
+      (println path)
+      (spit (str output-dir (::event/key event) ".json")
+            (event->jsonld event frame))))
+
+
+  
+  (let [gv-jsonld-frame (jsonld/json-file->doc (io/resource "frame.json"))]
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-06-04.edn.gz"]
+      (->> (event-store/event-seq r)
+           (take 3)
+           (run! #(write-json-ld % gv-jsonld-frame output-dir)))))
+
+  
+
+  
+  (->> (file-seq (io/file output-dir))
+       (filter #(.isFile %))
+       (map slurp)
+       (filter #(or (re-find #"gain of function" %)
+                    (re-find #"dominant negative" %)))
+       (map #(str "https://search.clinicalgenome.org/kb/gene-validity/" (-> % json/read-str (get "id"))))
+       (run! println))
+
+  
+  )
+
+;; figure out what curations have been unpublished and never republished
+
+(def publish-contrib-query
+  (rdf/create-query "select ?x where { ?x :cg/contributions / :cg/role :cg/Unpublisher } "))
+
+(defn add-is-publish-event [event]
+  (assoc event
+         :is-publish
+         (not (nil? (seq (publish-contrib-query (:gene-validity/model event)))))))
+
+(def assertion-query
+  (rdf/create-query "select ?x where { ?x a :cg/EvidenceStrengthAssertion } "))
+
+(def unpublisher-query
+  (rdf/create-query "
+select ?agent where {
+ ?x :cg/agent ?agent ; :cg/role :cg/Unpublisher .
+} "))
+
+(defn add-gdm [event]
+  (if-let [a (first (assertion-query (:gene-validity/model event)))]
+    (assoc event
+           :id (str (rdf/ld1-> a [:cg/subject]))
+           :gene (str (rdf/ld1-> a [:cg/subject :cg/gene]))
+           :disease (str (rdf/ld1-> a [:cg/subject :cg/disease]))
+           :mode-of-inheritance (str (rdf/ld1-> a [:cg/subject :cg/modeOfInheritance]))
+           :unpublisher (str (first (unpublisher-query (:gene-validity/model event)))))
+    (assoc event :null-model (:gene-validity/model event))))
+
+(comment
+  (def publish-unpublish-results-2
+    (let [gv-jsonld-frame (jsonld/json-file->doc (io/resource "frame.json"))]
+      (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gv-prod-3-2024-06-04.edn.gz"]
+        (->> (event-store/event-seq r)
+             #_(mapv #(-> %
+                          (event->jsonld gv-jsonld-frame)
+                          :gene-validity/json-ld
+                          json/read-str))
+             (pmap #(-> %
+                        (event->jsonld gv-jsonld-frame)
+                        add-is-publish-event
+                        add-gdm
+                        (select-keys [:id :gene :disease :mode-of-inheritance :is-publish :unpublisher])))
+             (into [])))))
+
+  (count (filter :null-model publish-unpublish-results-2))
+
+  (-> (filter :null-model publish-unpublish-results-2)
+      first
+      :null-model
+      rdf/to-turtle
+      println)
+
+  (def last-record
+    (reduce (fn [a x] (assoc a (:id x) x)) {} publish-unpublish-results-2))
+  (count last-record)
+  
+  (def last-unpublish (filter #(:is-publish (val %))  last-record))
+
+  (count last-unpublish)
+  (first last-unpublish)
+
+  (with-open [w (io/writer "/Users/tristan/desktop/unpublished-curations.csv")]
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+      (rdf/tx tdb
+        (->> last-unpublish
+             (mapv (fn [[k v]]
+                     (assoc v
+                            :gene-label (rdf/ld1-> (rdf/resource (:gene v) tdb)
+                                                   [[:owl/sameAs :<]
+                                                    :skos/prefLabel])
+                            :disease-label (rdf/ld1-> (rdf/resource (:disease v) tdb)
+                                                      [:rdfs/label])
+                            :moi-label  (rdf/ld1-> (rdf/resource (:mode-of-inheritance v) tdb)
+                                                   [:rdfs/label])
+                            :ep (rdf/ld1-> (rdf/resource (:unpublisher v) tdb)
+                                           [:rdfs/label]))))
+             (mapv (fn [{:keys [disease
+                                disease-label
+                                gene
+                                gene-label
+                                mode-of-inheritance
+                                moi-label
+                                ep
+                                id]}]
+                     [disease
+                      disease-label
+                      gene
+                      gene-label
+                      mode-of-inheritance
+                      moi-label
+                      ep
+                      (str "https://curation.clinicalgenome.org/curation-central/"
+                           (subs id 43))]))
+             (csv/write-csv w)))))
+
+  
+  (count "e1002cfc-5e0c-4311-81d8-dffee7394021")
+  (count "http://dataexchange.clinicalgenome.org/gci/e1002cfc-5e0c-4311-81d8-dffee7394021")
+  (- 79 36)
+  (str
+   "https://curation.clinicalgenome.org/curation-central/"
+   (subs "http://dataexchange.clinicalgenome.org/gci/e1002cfc-5e0c-4311-81d8-dffee7394021" 43))
   )

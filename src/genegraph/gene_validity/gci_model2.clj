@@ -279,6 +279,7 @@
             "Recuration Due to Timing" "cg:RecurationTiming"
             "Recuration New Evidence" "cg:RecurationNewEvidence"
             "Recuration Framework Change" "cg:RecurationFrameworkChange"
+            "Recuration Error affecting score and or classification" "cg:RecurationErrorAffectingScoreorClassification"
             
             }}))))
 

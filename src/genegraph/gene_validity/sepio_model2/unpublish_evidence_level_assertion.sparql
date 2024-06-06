@@ -3,8 +3,9 @@ prefix gcixform: <http://dataexchange.clinicalgenome.org/gcixform/>
 prefix cg: <http://dataexchange.clinicalgenome.org/terms/>
 
 construct {
-  
-  ?classification cg:contribution ?publishContribution .
+  ?classification a cg:EvidenceStrengthAssertion ;
+  cg:subject ?proposition ;
+  cg:contributions ?publishContribution .
 
   ?publishContribution cg:agent ?affiliation ;
   cg:role cg:Unpublisher ;
@@ -12,6 +13,7 @@ construct {
 
 }
 where {
+  ?proposition a gci:gdm .
   
   ?classification a gci:provisionalClassification ;
 
