@@ -377,7 +377,7 @@
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
-   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v6.nq.gz")
+   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v7.nq.gz")
    :path (str (:local-data-path env) "/gv-tdb")})
 
 (def response-cache-db
@@ -626,7 +626,7 @@
             :actionability
             (assoc actionability-topic
                    :type :kafka-reader-topic)
-            :gene-validity-legacy
+            :gene-validity-legacy-complete
             (assoc gene-validity-legacy-complete-topic
                    :type :kafka-reader-topic)
             :base-data
