@@ -65,7 +65,7 @@
                  :graphql-schema (gql-schema/merged-schema
                                   {:executor direct-executor}))
     "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
-                   :version 3
+                   :version 4
                    :name "stage"
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
@@ -120,8 +120,7 @@
    :kafka-cluster :data-exchange
    :serialization :json
    :buffer-size 5
-   :kafka-topic "gene_validity_complete"
-   :kafka-topic-config {}})
+   :kafka-topic "gene_validity_complete"})
 
 (def gene-validity-sepio-topic 
   {:name :gene-validity-sepio
@@ -161,8 +160,7 @@
   {:name :gene-validity-legacy-complete
    :serialization :json
    :kafka-topic "gene_validity_legacy_complete"
-   :kafka-cluster :data-exchange
-   :kafka-topic-config {}})
+   :kafka-cluster :data-exchange})
 
 ;; /Topics
 
@@ -379,7 +377,7 @@
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
-   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v5.nq.gz")
+   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v6.nq.gz")
    :path (str (:local-data-path env) "/gv-tdb")})
 
 (def response-cache-db
