@@ -114,6 +114,10 @@
   (p/start gv-test-app)
   (p/stop gv-test-app)
 
+  (storage/restore-snapshot (get-in gv-test-app [:storage :gv-tdb]))
+
+  (get-in gv-test-app [:storage :gv-tdb])
+
   )
 
 ;; Downloading events
@@ -145,7 +149,7 @@
   (get-events-from-topic gv/actionability-topic)
   (get-events-from-topic gv/gene-validity-complete-topic)
   (get-events-from-topic gv/gene-validity-raw-topic)
-
+  (get-events-from-topic gv/gene-validity-legacy-complete-topic)
 )
 
 ;; Gene Validity Interrogation
@@ -943,4 +947,31 @@ select ?agent where {
   (str
    "https://curation.clinicalgenome.org/curation-central/"
    (subs "http://dataexchange.clinicalgenome.org/gci/e1002cfc-5e0c-4311-81d8-dffee7394021" 43))
+  )
+
+
+;; Troubleshooting GV-Legacy data missing
+(comment
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+        q (rdf/create-query "
+select ?x where { 
+?x :bfo/has-part / :cnt/chars ?c .
+}
+")]
+    (rdf/tx tdb
+      (into [] (q tdb))))
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+        q (rdf/create-query "
+select ?x where { 
+?x :cnt/chars ?c .
+}
+")]
+    (rdf/tx tdb
+      (count (q tdb))))
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gvl-stage-3-2024-06-07.edn.gz"]
+    (->> (event-store/event-seq r)
+         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy-complete]) %))))
+  
   )
