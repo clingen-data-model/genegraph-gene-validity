@@ -88,6 +88,7 @@
     (p/init gv-seed-base-event-def))
 
   (p/start gv-seed-base-event)
+  (p/stop gv-seed-base-event)
   
   (->> (-> "base.edn" io/resource slurp edn/read-string)
        (run! #(p/publish (get-in gv-seed-base-event
@@ -153,6 +154,15 @@
        (run! #(p/publish (get-in upload-gv-neo4j
                                  [:topics  :gene-validity-legacy-complete])
                          (legacy-gv-edn->event %))))
+
+
+  (->> gene-validity-legacy-path
+       io/file
+       file-seq
+       (filter #(.isFile %))
+       (map legacy-gv-edn->event)
+       (take 5)
+       tap>)
 
   )
 

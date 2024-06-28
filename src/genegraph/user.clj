@@ -699,11 +699,18 @@ select ?source where {
                       slurp
                       json/read-str))
 
+  (tap> scv-legacy)
+
   (def test-data-publish-app (p/init test-data-publish-app-def))
 
   (p/start test-data-publish-app)
   (p/stop test-data-publish-app)
 
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gvl-stage-3-2024-06-07.edn.gz"]
+    (->> (event-store/event-seq r)
+         (map event/deserialize)
+         (run! #(p/publish (get-in test-data-publish-app [:topics :gene-validity-legacy-complete]) %))))
+  
   (p/publish (get-in test-data-publish-app [:topics :gene-validity-legacy-complete])
              {::event/data scv-legacy
               ::event/key "scv-test-data-1"})
@@ -972,6 +979,13 @@ select ?x where {
 
   (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gvl-stage-3-2024-06-07.edn.gz"]
     (->> (event-store/event-seq r)
+         (map event/deserialize)
          (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-legacy-complete]) %))))
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gvl-stage-3-2024-06-07.edn.gz"]
+    (->> (event-store/event-seq r)
+         (take 5)
+         (mapv event/deserialize)
+         tap>))
   
   )

@@ -41,8 +41,8 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "stage"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
+    {:platform "dev"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
      :local-data-path "data/"}
     {}))
 
@@ -54,11 +54,10 @@
                                (gql-schema/merged-schema
                                 {:executor direct-executor}))}
     "dev" (assoc (env/build-environment "522856288592" ["dataexchange-genegraph"])
-                 :version 3
+                 :version 2
                  :name "dev"
                  :function (System/getenv "GENEGRAPH_FUNCTION")
                  :kafka-user "User:2189780"
-                 :kafka-consumer-group "genegraph-gene-validity-dev-13"
                  :fs-handle {:type :gcs
                              :bucket "genegraph-framework-dev"}
                  :local-data-path "/data"
@@ -69,7 +68,6 @@
                    :name "stage"
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
-                   :kafka-consumer-group "gg-stage-3"
                    :fs-handle {:type :gcs
                                :bucket "genegraph-gene-validity-stage-1"}
                    :local-data-path "/data"
@@ -80,7 +78,6 @@
                   :version 3
                   :name "prod"
                   :kafka-user "User:2592237"
-                  :kafka-consumer-group "gg-prod-3"
                   :fs-handle {:type :gcs
                               :bucket "genegraph-gene-validity-prod-1"}
                   :local-data-path "/data"
@@ -120,7 +117,8 @@
    :kafka-cluster :data-exchange
    :serialization :json
    :buffer-size 5
-   :kafka-topic "gene_validity_complete"})
+   :kafka-topic "gene_validity_complete"
+   :kafka-topic-config {}})
 
 (def gene-validity-sepio-topic 
   {:name :gene-validity-sepio
@@ -150,17 +148,12 @@
    :serialization :json
    :kafka-topic "actionability"})
 
-(def gene-validity-raw-topic
-  {:name :gene-validity-raw
-   :serialization :json
-   :kafka-cluster :data-exchange
-   :kafka-topic "gene_validity_raw"})
-
 (def gene-validity-legacy-complete-topic
   {:name :gene-validity-legacy-complete
    :serialization :json
    :kafka-topic "gene_validity_legacy_complete"
-   :kafka-cluster :data-exchange})
+   :kafka-cluster :data-exchange
+   :kafka-topic-config {}})
 
 ;; /Topics
 
