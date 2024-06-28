@@ -54,7 +54,7 @@
                                (gql-schema/merged-schema
                                 {:executor direct-executor}))}
     "dev" (assoc (env/build-environment "522856288592" ["dataexchange-genegraph"])
-                 :version 2
+                 :version 3
                  :name "dev"
                  :function (System/getenv "GENEGRAPH_FUNCTION")
                  :kafka-user "User:2189780"

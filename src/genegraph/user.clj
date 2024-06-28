@@ -147,9 +147,9 @@
 (comment
 
   (get-events-from-topic gv/actionability-topic)
-  (get-events-from-topic gv/gene-validity-complete-topic)
+  (time (get-events-from-topic gv/gene-validity-complete-topic))
   (get-events-from-topic gv/gene-validity-raw-topic)
-  (get-events-from-topic gv/gene-validity-legacy-complete-topic)
+  (time (get-events-from-topic gv/gene-validity-legacy-complete-topic))
 )
 
 ;; Gene Validity Interrogation
@@ -242,7 +242,6 @@
         ::event/completion-promise (promise)})
       :gene-validity/model
       rdf/pp-model)
-
   (tap> gv-w-cv-evidence)
 
   
@@ -699,17 +698,24 @@ select ?source where {
                       slurp
                       json/read-str))
 
-  (tap> scv-legacy)
+  (tap> scv-raw)
+
+ 
 
   (def test-data-publish-app (p/init test-data-publish-app-def))
 
   (p/start test-data-publish-app)
   (p/stop test-data-publish-app)
 
-  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gvl-stage-3-2024-06-07.edn.gz"]
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_legacy_complete-2024-06-28.edn.gz"]
     (->> (event-store/event-seq r)
          (map event/deserialize)
          (run! #(p/publish (get-in test-data-publish-app [:topics :gene-validity-legacy-complete]) %))))
+  (time
+   (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2024-06-28.edn.gz"]
+     (->> (event-store/event-seq r)
+          (map event/deserialize)
+          (run! #(p/publish (get-in test-data-publish-app [:topics :gene-validity-complete]) %)))))
   
   (p/publish (get-in test-data-publish-app [:topics :gene-validity-legacy-complete])
              {::event/data scv-legacy

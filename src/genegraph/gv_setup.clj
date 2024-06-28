@@ -61,7 +61,6 @@
            #_gv/gene-validity-legacy-complete-topic
            #_gv/gene-validity-sepio-topic
            #_gv/api-log-topic]))
-
   )
 
 ;; Step 3

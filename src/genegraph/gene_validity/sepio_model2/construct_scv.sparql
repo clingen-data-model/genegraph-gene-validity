@@ -18,12 +18,15 @@ where
 {
   ?scv gci:scvId ?scvId ;
   gci:date ?scvDate ;
-  gci:comment ?scvComment ;
   gci:submitter ?scvSubmitter ;
   gci:variationId ?variationId ;
   gci:variationName ?variationName ;
   gci:vcvId ?vcvId .
 
+  OPTIONAL {
+    ?scv gci:comment ?scvComment .
+  }
+  
   BIND(IRI(CONCAT(?scvbase, ?scvId)) AS ?scvIRI) .
   BIND(IRI(CONCAT(?cvbase, ?variationId)) AS ?variationIRI) .
 }
