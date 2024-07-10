@@ -42,7 +42,7 @@
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
     {:platform "stage"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
 

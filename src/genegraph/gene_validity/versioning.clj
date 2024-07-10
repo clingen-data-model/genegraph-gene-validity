@@ -21,9 +21,9 @@
   (seq (publish-actions m)))
 
 (defn approval-date [model]
-  (-> (activity-with-role model {:role :sepio/ApproverRole})
-      first
-      (rdf/ld1-> [:sepio/activity-date])))
+  (some-> (activity-with-role model {:role :sepio/ApproverRole})
+          first
+          (rdf/ld1-> [:sepio/activity-date])))
 
 (defn no-change? [event prior-event]
   (rdf/is-isomorphic? (:gene-validity/model event)
