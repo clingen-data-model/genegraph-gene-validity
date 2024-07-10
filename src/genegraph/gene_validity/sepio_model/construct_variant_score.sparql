@@ -185,7 +185,7 @@ where {
   BIND(IF( ?zygosity = :geno/Homozygous , ?baseScore * 2 , ?baseScore) AS ?score) .
   BIND(IF( ?zygosity = :geno/Homozygous , ?calculatedScore * 2 , ?calculatedScore) AS ?resultCalculatedScore) .
 
-  ?annotation
+  ?annotation a gci:annotation ;
   (gci:families|gci:groups)? /
   gci:familyIncluded? /
   gci:individuals|gci:individualIncluded
