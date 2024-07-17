@@ -42,10 +42,17 @@
       requested-assertion
       nil)))
 
-;; used
-(defn report-date [context args value]
-  (rdf/ld1-> value [:sepio/qualified-contribution :sepio/activity-date]))
+(def approval-query
+  (rdf/create-query "
+select ?contrib where
+{
+ ?stmt :sepio/qualified-contribution ?contrib . 
+ ?contrib :bfo/realizes :sepio/ApproverRole 
+}"))
 
+(defn report-date [context args value]
+  (if-let [contrib (first (approval-query value {:stmt value}))]
+    (rdf/ld1-> contrib [:sepio/activity-date])))
 
 (defn gene-validity-curations [context args value]
   (curation/gene-validity-curations-for-resolver context args value))
