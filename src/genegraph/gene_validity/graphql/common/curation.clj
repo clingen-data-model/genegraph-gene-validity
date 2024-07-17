@@ -89,9 +89,23 @@
 (def union-of-all-curations
   (cons :union (map #(cons :bgp %) curation-bgps)))
 
+(def gene-dosage-disease-gene-first-bgp
+  '[[dosage_report :iao/is-about gene]
+    [dosage_report :bfo/has-part dosage_assertion]
+    [dosage_assertion :sepio/has-subject dosage_proposition]
+    [dosage_proposition :sepio/has-object disease]
+    [gene :rdf/type :so/Gene]
+    [dosage_report :rdf/type :sepio/GeneDosageReport]])
+
+(def union-of-all-curations-for-gene-list
+  (cons :union (map #(cons :bgp %)
+                    [gene-validity-bgp
+                     actionability-bgp
+                     gene-dosage-disease-gene-first-bgp])))
+
 (def actionability-curations-for-genetic-condition
   (rdf/create-query [:project ['ac_report]
-                 (cons :bgp actionability-bgp)]))
+                     (cons :bgp actionability-bgp)]))
 
 
 
@@ -150,7 +164,7 @@
 
 (def curated-diseases-for-gene
   (rdf/create-query [:project ['disease]
-                 union-of-all-curations]))
+                 union-of-all-curations-for-gene-list]))
 
 (defn curated-genetic-conditions-for-gene [model query-params]
   (map #(array-map :gene (:gene query-params) :disease %) 
