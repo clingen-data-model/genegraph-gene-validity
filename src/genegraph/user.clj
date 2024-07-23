@@ -19,7 +19,11 @@
             [io.pedestal.log :as log]
             [io.pedestal.interceptor :as interceptor]
             [hato.client :as hc]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.edn :as edn]
+            [clojure.walk :as walk]
+            [clojure.spec.alpha :as spec])
   (:import [java.time Instant LocalDate]
            [ch.qos.logback.classic Logger Level]
            [org.slf4j LoggerFactory]
@@ -33,7 +37,7 @@
            [com.apicatalog.rdf Rdf]
            [com.apicatalog.rdf.spi RdfProvider]
            [jakarta.json JsonObjectBuilder Json]
-           [java.io StringWriter]
+           [java.io StringWriter PushbackReader File]
            [java.util.concurrent Semaphore]))
 
 ;; Portal
@@ -237,14 +241,27 @@
        (get-in gv-test-app [:processors :gene-validity-transform])
        {::event/value (slurp gv-w-cv-evidence-path)
         ::event/format :json
-        ::event/skip-local-effects true
-        ::event/skip-publish-effects true
         ::event/completion-promise (promise)})
       :gene-validity/model
       rdf/pp-model)
   (tap> gv-w-cv-evidence)
 
   
+  )
+
+(comment
+  (def a2ml1
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2024-07-16.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"d910a9d8"
+                             (::event/value %)))
+           (into []))))
+
+  (count a2ml1)
+
+  (-> (last a2ml1)
+      event/deserialize
+      tap>)
   )
 
 ;; GO terms for functional data
@@ -993,5 +1010,148 @@ select ?x where {
          (take 5)
          (mapv event/deserialize)
          tap>))
+  
+  )
+
+(defn gene-set [result]
+  (->> (-> result
+          :body
+          (json/read-str :key-fn keyword)
+          :data
+          :genes
+          :gene_list)
+       set))
+
+;; troubleshooting gene list discrepancy
+(comment
+  (def c (hc/build-http-client {:connect-timeout 100
+                                :redirect-policy :always
+                                :timeout (* 1000 60 10)}))
+
+  (def genes-query
+    "
+{
+  genes(curation_activity: ALL, limit: null) {
+    count
+    gene_list {
+      label
+      curie
+    }
+  }
+}")
+  (def prod-result
+    (hc/post "https://genegraph.prod.clingen.app/api"
+             {:http-client c
+              :content-type :json
+              :body (json/write-str {:query genes-query})}))
+
+  (def stage-result
+    (hc/post "https://genegraph-gene-validity.stage.clingen.app/api"
+             {:http-client c
+              :content-type :json
+              :body (json/write-str {:query genes-query})}))
+
+  (clojure.pprint/pprint
+   (set/difference (gene-set prod-result)
+                   (gene-set stage-result)))
+
+    (def gv-query
+    "
+{
+  genes(curation_activity: GENE_VALIDITY, limit: null) {
+    count
+    gene_list {
+      label
+      curie
+    }
+  }
+}")
+
+    (def prod-gv-result
+      (hc/post "https://genegraph.prod.clingen.app/api"
+               {:http-client c
+                :content-type :json
+                :body (json/write-str {:query gv-query})}))
+
+    (def stage-gv-result
+      (hc/post "https://genegraph-gene-validity.stage.clingen.app/api"
+               {:http-client c
+                :content-type :json
+                :body (json/write-str {:query gv-query})}))
+
+    (tap>
+     (set/difference (gene-set stage-gv-result)
+                     (gene-set prod-gv-result)))
+
+    (tap> prod-result)
+  )
+
+
+
+(comment
+  (spit "/users/tristan/Desktop/missing-dosage-curations.ttl"
+        (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+              q (rdf/create-query "
+select ?x where { 
+?x a :sepio/GeneDosageReport .
+} 
+")]
+          (rdf/tx tdb
+            (let [in-db (->> (q tdb) (map #(re-find #"ISCA-\d+"(str %))) set)]
+              (->> "/Users/tristan/data/genegraph/2023-11-07T1617/events/:gene-dosage-restored"
+                   io/file
+                   file-seq
+                   (filter #(and (.isFile %)
+                                 (not (in-db (re-find #"ISCA-\d+"(.getName %))))))
+                   #_(take 1)
+                   (mapv (fn [f]
+                           (with-open [r (PushbackReader. (io/reader f))]
+                             (:genegraph.sink.event/value (edn/read r)))))
+                   (reduce str ""))))))
+
+  (def missing-gd
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])
+          q (rdf/create-query "
+select ?x where { 
+?x a :sepio/GeneDosageReport .
+} 
+")]
+      (rdf/tx tdb
+        (let [in-db (->> (q tdb) (map #(re-find #"ISCA-\d+"(str %))) set)]
+          (->> "/Users/tristan/data/genegraph/2023-11-07T1617/events/:gene-dosage-restored"
+               io/file
+               file-seq
+               (filter #(.isFile %))
+               (map #(re-find #"ISCA-\d+"(.getName %)))
+               (remove in-db)
+               set)))))
+
+  (def missing-gd-events
+   (->> (tree-seq
+         #(.isDirectory %)
+         #(.listFiles %)
+         (io/file "/Users/tristan/data/gene-dosage-topic-data"))
+        (filter #(and (.isFile %)
+                      (re-find #"json$" (.getName %))))
+        #_(take 50)
+        (mapcat (fn [f]
+                  (with-open [r (io/reader f)]
+                    (mapv #(json/read-str % :key-fn keyword) (line-seq r)))))
+        (filter #(missing-gd (:key %)))
+        (into [])))
+
+  (defn process-gd-event [e]
+    (p/process (get-in gv-test-app [:processors :import-dosage-curations])
+               {::event/data e
+                ::event/completion-promise (promise)
+                ::event/skip-local-effects true
+                ::event/skip-publish-effects true}))
+
+  #_(->> missing-gd-events
+       (map process-gd-event)
+       (remove ::spec/invalid)
+       count)
+
+  
   
   )

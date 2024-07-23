@@ -36,16 +36,13 @@
    :kafka-clusters {:data-exchange gv/data-exchange}
    :topics
    {:api-log
-    {:name :api-log
-     :type :kafka-reader-topic
-     :kafka-cluster :data-exchange
-     :serialization :edn
-     :kafka-topic "genegraph_api_log-v1"}}
+    (assoc gv/api-log-topic
+           :type :kafka-reader-topic)}
    :storage
    {:log-store
     {:name :log-store
      :type :rocksdb
-     :path "/users/tristan/data/genegraph-neo/log-store"}}
+     :path "/users/tristan/data/genegraph-neo/log-store-stage-1"}}
    :processors
    {:api-log-reader
     {:name :api-log-reader
@@ -74,9 +71,46 @@
                          [:log-record])
       last
       tap>)
-  (-> (storage/read @(get-in log-monitor [:storage :log-store :instance])
-                    [:log-record "1711394859511"])
-      print-query)
+
+  (->> (rocksdb/range-get @(get-in log-monitor [:storage :log-store :instance])
+                         [:log-record])
+       (sort-by :response-size)
+       reverse
+       (take 10)
+       tap>)
+
+  (->> (rocksdb/range-get @(get-in log-monitor [:storage :log-store :instance])
+                          [:log-record])
+       (remove :handled-by)
+       #_(filter #(re-find #"genes\(limit" (:query %)))
+       (map #(assoc % :duration (- (:end-time %) (:start-time %))))
+       (sort-by :duration)
+       reverse
+       (take 20)
+       (mapv :duration))
+
+  (->> (rocksdb/range-get @(get-in log-monitor [:storage :log-store :instance])
+                          [:log-record])
+       (remove :handled-by)
+       #_(filter #(re-find #"genes\(limit" (:query %)))
+       (map #(assoc % :duration (- (:end-time %) (:start-time %))))
+       (sort-by :duration)
+       reverse
+       (take 1)
+       #_(mapv :duration)
+       (map #(assoc % :parsed-query (json/read-str (:query %) :key-fn keyword)))
+       (run! #(println (:parsed-query %))))
+
+  
+
+  
+  
+  (spit "/Users/tristan/Desktop/problem-query.graphql"
+        (-> (storage/read @(get-in log-monitor [:storage :log-store :instance])
+                          [:log-record "1720618886905"])
+            :query
+            (json/read-str :key-fn keyword)
+            :query))
   
   )
 (def c (hc/build-http-client {:connect-timeout 100
