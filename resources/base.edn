@@ -152,5 +152,9 @@
  {:name "http://dataexchange.clinicalgenome.org/gci-express"
   :source "https://raw.githubusercontent.com/clingen-data-model/data-exchange-shared-json/master/json-from-gene-express/gci-express-with-entrez-ids.json"
   :target "gci-express-with-entrez-ids.json"
-  :format :genegraph.gene-validity.base/gci-express}]
+  :format :genegraph.gene-validity.base/gci-express}
+ {:name "http://dataexchange.clinicalgenome.org/missing-dosage-curations"
+  :source "https://raw.githubusercontent.com/clingen-data-model/genegraph-gene-validity/main/resources/missing-dosage-curations.ttl"
+  :target "missing-dosage-curations.ttl"
+  :format :genegraph.framework.storage.rdf/turtle}]
 

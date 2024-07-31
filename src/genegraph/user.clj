@@ -154,6 +154,10 @@
   (time (get-events-from-topic gv/gene-validity-complete-topic))
   (get-events-from-topic gv/gene-validity-raw-topic)
   (time (get-events-from-topic gv/gene-validity-legacy-complete-topic))
+
+  (time (get-events-from-topic gv/gene-validity-sepio-topic))
+
+  (/ 822646.824791 1000 60)
 )
 
 ;; Gene Validity Interrogation
@@ -1080,8 +1084,8 @@ select ?x where {
                 :body (json/write-str {:query gv-query})}))
 
     (tap>
-     (set/difference (gene-set stage-gv-result)
-                     (gene-set prod-gv-result)))
+     (set/difference (gene-set prod-gv-result)
+                     (gene-set stage-gv-result)))
 
     (tap> prod-result)
   )
@@ -1154,4 +1158,130 @@ select ?x where {
 
   
   
+  )
+
+;; missing new curation
+(comment
+  (defn process-gv-event [e]
+    (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+               (assoc e
+                      ::event/completion-promise (promise)
+                      ::event/skip-local-effects true
+                      ::event/skip-publish-effects true)))
+  
+  (def gfpt1
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2024-07-25.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"a8f8af21-a5dc-41aa-9bd3-b38c3a98d55c"
+                             (::event/value %)))
+           (into []))))
+  (-> gfpt1 first ::event/timestamp Instant/ofEpochMilli)
+  
+  (def gfpt1-sepio
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-gvs-stage-7-2024-07-25.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"a8f8af21-a5dc-41aa-9bd3-b38c3a98d55c"
+                             (::event/value %)))
+           (into []))))
+  (count gfpt1-sepio)
+
+  (def first-curation
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2024-07-25.edn.gz"]
+      (->> (event-store/event-seq r)
+           first)))
+  (-> gfpt1
+      first
+      process-gv-event
+      #_(dissoc :gene-validity/gci-model :gene-validity/model)
+      #_tap>
+      :gene-validity/model
+      rdf/pp-model)
+
+  (-> last-curation process-gv-event tap>)
+
+  
+  
+  [(-> gfpt1 first ::event/timestamp Instant/ofEpochMilli)
+   (-> last-curation ::event/timestamp Instant/ofEpochMilli)]
+  
+  )
+
+
+(comment
+  (def c (hc/build-http-client {:connect-timeout 100
+                                :redirect-policy :always
+                                :timeout (* 1000 60 10)}))
+
+  (def genes-query
+    "
+{
+  genes(curation_activity: ALL, limit: null) {
+    count
+    gene_list {
+      label
+      curie
+    }
+  }
+}")
+  (def prod-result
+    (hc/post "https://genegraph.prod.clingen.app/api"
+             {:http-client c
+              :content-type :json
+              :body (json/write-str {:query genes-query})}))
+
+  (def stage-result
+    (hc/post "https://genegraph-gene-validity.stage.clingen.app/api"
+             {:http-client c
+              :content-type :json
+              :body (json/write-str {:query genes-query})}))
+
+  (clojure.pprint/pprint
+   (set/difference (gene-set prod-result)
+                   (gene-set stage-result)))
+
+    (def gvc-query
+      "
+{
+  gene_validity_assertions(limit: null) {
+    count
+    curation_list {
+     curie
+      gene {
+        curie
+        label
+      }
+    }
+  }
+}")
+
+    (defn gv-gene-set [result]
+  (->> (-> result
+          :body
+          (json/read-str :key-fn keyword)
+          :data
+          :gene_validity_assertions
+          :curation_list)
+       set))
+
+    (def prod-gv-result
+      (hc/post "https://genegraph.prod.clingen.app/api"
+               {:http-client c
+                :content-type :json
+                :body (json/write-str {:query gvc-query})}))
+
+    (def stage-gv-result
+      (hc/post "https://genegraph-gene-validity.stage.clingen.app/api"
+               {:http-client c
+                :content-type :json
+                :body (json/write-str {:query gvc-query})}))
+
+    (tap>
+     (set/difference (gv-gene-set stage-gv-result)
+                     (gv-gene-set prod-gv-result)))
+
+    (tap> prod-result)
+    (tap>
+     (with-open [r (io/reader "/Users/tristan/code/data-exchange-shared-json/json-from-gene-express/gci-express-with-entrez-ids.json")]
+       (json/read r :key-fn keyword)))
+
   )
