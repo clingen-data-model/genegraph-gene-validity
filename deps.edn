@@ -15,10 +15,10 @@
   :build {:deps {io.github.clojure/tools.build {:git/tag "v0.9.6"
                                                 :git/sha "8e78bcc"}}
           :ns-default build}
-  :dev {:extra-deps {io.github.nubank/morse {:git/tag "v2023.04.30.01"
-                                             :git/sha "d99b09c"}
-                     djblue/portal {:mvn/version "0.51.1"}
-                     io.github.nextjournal/clerk {:mvn/version "0.15.957"}}
+  :dev {:extra-deps {djblue/portal {:mvn/version "0.51.1"}
+                     io.github.nextjournal/clerk {:mvn/version "0.15.957"}
+                     generateme/fastmath {:mvn/version "2.4.0"
+                                          :exclusions [com.github.haifengl/smile-mkl]}}
         :jvm-opts ["-agentpath:/Applications/YourKit-Java-Profiler-2024.3.app/Contents/Resources/bin/mac/libyjpagent.dylib=disablestacktelemetry,exceptions=disable,delay=10000"
                    "-XX:+UseZGC" "-XX:+ZGenerational" "-XX:MaxRAMPercentage=50"]}}
 

@@ -1285,3 +1285,27 @@ select ?x where {
        (json/read r :key-fn keyword)))
 
   )
+
+;; Unscoreable clinvar  GV 
+(comment
+  (def dnase1
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2024-08-08.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"fe942eb4-ba59-43bf-89e0-243522ba7cbf"
+                             (::event/value %)))
+           (into []))))
+
+  (defn process-gv-event [e]
+    (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+               (assoc e 
+                      ::event/completion-promise (promise)
+                      ::event/skip-local-effects true
+                      ::event/skip-publish-effects true)))
+
+  
+  (-> dnase1
+      last
+      process-gv-event
+      :gene-validity/model
+      rdf/pp-model)
+  )
