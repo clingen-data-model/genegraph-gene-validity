@@ -370,7 +370,7 @@
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
-   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v11.nq.gz")
+   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v12.nq.gz")
    :path (str (:local-data-path env) "/gv-tdb")})
 
 (def response-cache-db
