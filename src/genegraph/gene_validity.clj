@@ -1,4 +1,4 @@
-(ns genegraph.gene-validity
+ (ns genegraph.gene-validity
   (:require [genegraph.framework.app :as app]
             [genegraph.framework.protocol :as p]
             [genegraph.framework.event :as event]
@@ -41,7 +41,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "prod"
+    {:platform "stage"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -64,7 +64,7 @@
                  :graphql-schema (gql-schema/merged-schema
                                   {:executor direct-executor}))
     "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
-                   :version 7
+                   :version 8
                    :name "stage"
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
@@ -431,7 +431,6 @@
    {:name ::await-genes
     :enter (fn [e] (await-genes-fn e))}))
 
-
 (def import-gv-curations
   {:type :processor
    :subscribe :gene-validity-sepio
@@ -516,13 +515,50 @@
                   lacinia-pedestal/query-executor-handler]
    :init-fn init-graphql-processor})
 
+(def type-query
+  (rdf/create-query "select ?x where { ?x a ?type . } "))
+
+(defn gv-ready-fn [e]
+  (let [tdb (get-in e [::storage/storage :gv-tdb])
+        type-count (fn [t]
+                     (count (type-query tdb {:type t})))]
+    (rdf/tx tdb
+      (let [gv-count (type-count
+                      :sepio/GeneValidityEvidenceLevelAssertion)
+            ac-count (type-count :sepio/ActionabilityReport)
+            gd-count (type-count :sepio/GeneDosageReport)]
+        (log/info :fn ::gv-ready-fn
+                  :gv-count gv-count
+                  :ac-count ac-count
+                  :gd-count gd-count)
+        (assoc e
+               :response
+               (if (and (< 2700 gv-count)
+                        (< 200 ac-count)
+                        (< 2000 gd-count))
+                 {:status 200 :body "ready"}
+                 {:status 500 :body "not ready"}))))))
+
+(def graphql-ready-interceptor
+  (interceptor/interceptor
+   {:name :graphql-ready
+    :enter (fn [e] (gv-ready-fn e))}))
+
+(def graphql-ready
+  {:name :graphql-ready
+   :type :processor
+   :interceptors [graphql-ready-interceptor]})
+
 (def gv-http-server
   {:gene-validity-server
    {:type :http-server
     :name :gene-validity-server
     :endpoints [{:path "/api"
                  :processor :graphql-api
-                 :method :post}]
+                 :method :post}
+                {:path "/ready"
+                 :processor :graphql-ready
+                 :method :get}]
     ::http/host "0.0.0.0"
     ::http/allowed-origins {:allowed-origins (constantly true)
                             :creds true}
@@ -531,7 +567,7 @@
      (lacinia-pedestal/graphiql-asset-routes "/assets/graphiql")
      ["/ide" :get (lacinia-pedestal/graphiql-ide-handler {})
       :route-name ::lacinia-pedestal/graphql-ide]
-     ["/ready"
+     #_["/ready"
       :get (fn [_] {:status 200 :body "server is ready"})
       :route-name ::readiness]
      ["/live"
@@ -628,6 +664,7 @@
    :processors {:import-gv-curations import-gv-curations
                 :import-base-file import-base-processor
                 :graphql-api graphql-api
+                :graphql-ready graphql-ready
                 :import-actionability-curations import-actionability-curations
                 :import-dosage-curations import-dosage-curations
                 :import-gene-validity-legacy-report gene-validity-legacy-report-processor}

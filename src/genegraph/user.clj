@@ -107,6 +107,7 @@
                 :graphql-api (assoc gv/graphql-api
                                     ::event/metadata
                                     {::response-cache/skip-response-cache true})
+                :graphql-ready gv/graphql-ready
                 :import-actionability-curations gv/import-actionability-curations
                 :import-dosage-curations gv/import-dosage-curations
                 :read-api-log read-api-log
@@ -117,10 +118,6 @@
   (def gv-test-app (p/init gv-test-app-def))
   (p/start gv-test-app)
   (p/stop gv-test-app)
-
-  (storage/restore-snapshot (get-in gv-test-app [:storage :gv-tdb]))
-
-  (get-in gv-test-app [:storage :gv-tdb])
 
   )
 
