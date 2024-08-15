@@ -521,13 +521,18 @@
 (defn gv-ready-fn [e]
   (let [tdb (get-in e [::storage/storage :gv-tdb])
         type-count (fn [t]
-                     (count (type-query tdb {:type t})))]
-    (rdf/tx tdb
+                     (count (type-query tdb {:type t})))
+        in-tx (.isInTransaction tdb)]
+    (try
+      (when-not in-tx
+        (.begin tdb ReadWrite/READ))
       (let [gv-count (type-count
                       :sepio/GeneValidityEvidenceLevelAssertion)
             ac-count (type-count :sepio/ActionabilityReport)
             gd-count (type-count :sepio/GeneDosageReport)]
-        (log/info :fn ::gv-ready-fn
+        (.commit tdb) ; https://github.com/apache/jena/issues/2584
+        (.end tdb)
+        #_(log/info :fn ::gv-ready-fn
                   :gv-count gv-count
                   :ac-count ac-count
                   :gd-count gd-count)

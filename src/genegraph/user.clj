@@ -118,7 +118,32 @@
   (def gv-test-app (p/init gv-test-app-def))
   (p/start gv-test-app)
   (p/stop gv-test-app)
+  
+  (time
+   (let [c (hc/build-http-client {})
+         lock (Semaphore. 10)]
+     (dotimes [n 10000]
+       (.acquire lock)
+       (Thread/startVirtualThread
+        (fn []
+          (hc/get "http://localhost:8888/ready")
+          (.release lock))))))
 
+  (time
+   (let [c (hc/build-http-client {})
+         lock (Semaphore. 10)
+         db @(get-in gv-test-app [:storage :gv-tdb :instance])]
+     (dotimes [n 100000]
+       (.acquire lock)
+       (Thread/startVirtualThread
+        (fn []
+          (try
+            (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
+              (gv/gv-ready-fn {::storage/storage {:gv-tdb db}}))
+            (finally (.release lock))))))))
+
+  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (gv/gv-ready-fn {::storage/storage {:gv-tdb db}}))
   )
 
 ;; Downloading events
@@ -1299,10 +1324,27 @@ select ?x where {
                       ::event/skip-local-effects true
                       ::event/skip-publish-effects true)))
 
+
+    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (let [r (rdf/resource "CGGV:fe942eb4-ba59-43bf-89e0-243522ba7cbf"
+                        tdb)]
+        (rdf/pp-model (storage/read tdb (str r))))))
+
   
   (-> dnase1
       last
-      process-gv-event
+      process-gv-event 
       :gene-validity/model
       rdf/pp-model)
   )
+
+
+(comment
+  (time
+   (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+     (dotimes [n 100000]
+       (rdf/tx tdb
+         (+ 1 1)))))
+
+ )

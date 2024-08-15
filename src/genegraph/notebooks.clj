@@ -13,7 +13,7 @@
              (assoc gv/gv-tdb
                     :snapshot-handle {:type :file
                                       :base "/Users/tristan/code/genegraph-gene-validity/data/"
-                                      :path "gv-tdb-v11.nq.gz"})}})
+                                      :path "gv-tdb-v12.nq.gz"})}})
 
 
 (comment
