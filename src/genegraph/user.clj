@@ -56,7 +56,8 @@
               :duration (- (:end-time data) (:start-time data))
               :response-size (:response-size data)
               :handled-by (:handled-by data)
-              :status (:status data))
+              :status (:status data)
+              :error-message (:error-message data))
     e))
 
 (def log-api-event

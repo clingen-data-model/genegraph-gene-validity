@@ -16,7 +16,7 @@
 
 (defn handle-log-entry-fn [e]
   (let [data (::event/data e)]
-    (log/info :duration (- (:end-time data) (:start-time data))
+    #_(log/info :duration (- (:end-time data) (:start-time data))
               :status (:status data)
               :response-size (:response-size data)
               :start-time (:start-time data)
@@ -42,7 +42,7 @@
    {:log-store
     {:name :log-store
      :type :rocksdb
-     :path "/users/tristan/data/genegraph-neo/log-store-stage-1"}}
+     :path "/users/tristan/data/genegraph-neo/log-store-prod-1"}}
    :processors
    {:api-log-reader
     {:name :api-log-reader
@@ -73,7 +73,14 @@
       tap>)
 
   (->> (rocksdb/range-get @(get-in log-monitor [:storage :log-store :instance])
-                         [:log-record])
+                          [:log-record])
+       (filter #(not= (:status %) 200))
+       (map #(assoc % :duration (- (:end-time %) (:start-time %))))
+       (map :duration))
+  
+  
+  (->> (rocksdb/range-get @(get-in log-monitor [:storage :log-store :instance])
+                          [:log-record])
        (sort-by :response-size)
        reverse
        (take 10)

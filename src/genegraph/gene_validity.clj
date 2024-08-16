@@ -485,7 +485,8 @@
                   :remote-addr (get-in e [:request :remote-addr])
                   :response-size (count (get-in e [:response :body]))
                   :status (get-in e [:response :status])
-                  :handled-by (::event/handled-by e)}
+                  :handled-by (::event/handled-by e)
+                  :error-message (::error-message e)}
     ::event/key (str (::start-time e))
     ::event/topic :api-log}))
 
@@ -493,6 +494,20 @@
   (interceptor/interceptor
    {:name ::publish-result
     :leave (fn [e] (publish-result-fn e))}))
+
+(defn report-error-interceptor-fn [e]
+  (if-let [errors (seq (get-in e [:response :body :errors]))]
+    (assoc e ::error-message (mapv :message errors))
+    e))
+
+
+(def report-error-interceptor
+  (interceptor/interceptor
+   {:name ::report-error
+    :leave (fn [e] (report-error-interceptor-fn
+                    (assoc e ::status :ok)))
+    :error (fn [e] (report-error-interceptor-fn
+                    (assoc e ::status :error)))}))
 
 (def graphql-api
   {:name :graphql-api
@@ -504,6 +519,7 @@
                   response-cache/response-cache
                   jena-transaction-interceptor
                   lacinia-pedestal/json-response-interceptor
+                  report-error-interceptor
                   lacinia-pedestal/error-response-interceptor
                   lacinia-pedestal/graphql-data-interceptor
                   lacinia-pedestal/status-conversion-interceptor
