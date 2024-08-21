@@ -1,4 +1,4 @@
- (ns genegraph.gene-validity
+(ns genegraph.gene-validity
   (:require [genegraph.framework.app :as app]
             [genegraph.framework.protocol :as p]
             [genegraph.framework.event :as event]

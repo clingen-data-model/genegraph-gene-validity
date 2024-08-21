@@ -1349,3 +1349,259 @@ select ?x where {
          (+ 1 1)))))
 
  )
+
+
+;; troubleshooting slow query reported by phil
+
+(comment
+  (def c (hc/build-http-client {:connect-timeout 100
+                                :redirect-policy :always
+                                :timeout (* 1000 60 10)}))
+
+  (def slow-query
+    "
+{
+  genes(
+    limit: 20000
+    curation_activity: ALL
+    sort: {field: GENE_LABEL, direction: ASC}
+  ) {
+    count
+    gene_list {
+      label
+      hgnc_id
+      last_curated_date
+      curation_activities
+      genetic_conditions {
+        disease {
+          curie
+          label
+          last_curated_date
+        }
+        gene_dosage_assertions {
+          report_date
+          assertion_type
+          curie
+          disease {
+            curie
+            description
+            iri
+            label
+            last_curated_date
+          }
+          iri
+          label
+        }
+        actionability_assertions {
+          report_date
+          source
+          classification {
+            curie
+            iri
+            label
+          }
+          attributed_to {
+            curie
+            label
+          }
+        }
+        gene_validity_assertions {
+          attributed_to {
+            curie
+            label
+          }
+          classification {
+            curie
+            iri
+            label
+          }
+          mode_of_inheritance {
+            curie
+            label
+          }
+          curie
+          report_date
+          iri
+        }
+      }
+      dosage_curation {
+        report_date
+        triplosensitivity_assertion {
+          disease {
+            label
+            curie
+          }
+          dosage_classification {
+            ordinal
+          }
+        }
+        haploinsufficiency_assertion {
+          disease {
+            label
+            description
+            curie
+          }
+          dosage_classification {
+            ordinal
+          }
+        }
+      }
+    }
+  }
+}
+")
+  (time 
+   (def local-result
+     (hc/post "http://localhost:8888/api"
+              {:http-client c
+               :content-type :json
+               :body (json/write-str {:query
+                                          "
+{
+  genes(
+    limit: 20000
+    curation_activity: ALL
+    sort: {field: GENE_LABEL, direction: ASC}
+  ) {
+    count
+    gene_list {
+      label
+      hgnc_id
+      last_curated_date
+      curation_activities
+      genetic_conditions {
+        disease {
+          curie
+          label
+          last_curated_date
+        }
+        gene_dosage_assertions {
+          report_date
+          assertion_type
+          curie
+          disease {
+            curie
+            description
+            iri
+            label
+            last_curated_date
+          }
+          iri
+          label
+        }
+        actionability_assertions {
+          report_date
+          source
+          classification {
+            curie
+            iri
+            label
+          }
+          attributed_to {
+            curie
+            label
+          }
+        }
+        gene_validity_assertions {
+          attributed_to {
+            curie
+            label
+          }
+          classification {
+            curie
+            iri
+            label
+          }
+          mode_of_inheritance {
+            curie
+            label
+          }
+          curie
+          report_date
+          iri
+        }
+      }
+      dosage_curation {
+        report_date
+        triplosensitivity_assertion {
+          disease {
+            label
+            curie
+          }
+          dosage_classification {
+            ordinal
+          }
+        }
+        haploinsufficiency_assertion {
+          disease {
+            label
+            description
+            curie
+          }
+          dosage_classification {
+            ordinal
+          }
+        }
+      }
+    }
+  }
+}
+"})})))
+
+  (def genes-query
+    "
+{
+  genes(curation_activity: ALL, limit: null) {
+    count
+    gene_list {
+      label
+      curie
+    }
+  }
+}")
+  (def prod-result
+    (hc/post "https://genegraph.prod.clingen.app/api"
+             {:http-client c
+              :content-type :json
+              :body (json/write-str {:query genes-query})}))
+
+  (def stage-result
+    (hc/post "https://genegraph-gene-validity.stage.clingen.app/api"
+             {:http-client c
+              :content-type :json
+              :body (json/write-str {:query genes-query})}))
+
+  (clojure.pprint/pprint
+   (set/difference (gene-set prod-result)
+                   (gene-set stage-result)))
+
+    (def gv-query
+    "
+{
+  genes(curation_activity: GENE_VALIDITY, limit: null) {
+    count
+    gene_list {
+      label
+      curie
+    }
+  }
+}")
+
+    (def prod-gv-result
+      (hc/post "https://genegraph.prod.clingen.app/api"
+               {:http-client c
+                :content-type :json
+                :body (json/write-str {:query gv-query})}))
+
+    (def stage-gv-result
+      (hc/post "https://genegraph-gene-validity.stage.clingen.app/api"
+               {:http-client c
+                :content-type :json
+                :body (json/write-str {:query gv-query})}))
+
+    (tap>
+     (set/difference (gene-set prod-gv-result)
+                     (gene-set stage-gv-result)))
+
+    (tap> prod-result)
+  )
