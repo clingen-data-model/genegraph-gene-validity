@@ -2,7 +2,9 @@
  {"central"
   {:url "https://repo1.maven.org/maven2/"}
   "clojars"
-  {:url "https://repo.clojars.org/"}}
+  {:url "https://repo.clojars.org/"}
+  ;; needed to build lacinia-pedestal
+  "redplanetlabs" {:url "https://nexus.redplanetlabs.com/repository/maven-public-releases"}}
 
  :paths ["src" "resources" "config"]
  
@@ -27,9 +29,11 @@
  :deps
  {ch.qos.logback/logback-classic                    {:mvn/version "1.5.0"}
   org.clojure/clojure                               {:mvn/version "1.11.2"}
-  io.github.clingen-data-model/genegraph-framework  {:git/tag "0.1-alpha.29"
-                                                     :git/sha "5f72f54"}
-  com.walmartlabs/lacinia-pedestal                  {:mvn/version "1.2"}
+  io.github.clingen-data-model/genegraph-framework
+  {:git/sha "40c901e797af669d46c3f503818262ec4e707470"}
+  com.walmartlabs/lacinia-pedestal
+  {:git/sha "075bcdcbb0969fe4dbd15770f29b7273ff872b78"
+   :git/url "https://github.com/walmartlabs/lacinia-pedestal.git"}
   hato/hato                                         {:mvn/version "0.9.0"}
   org.clojure/data.csv                              {:mvn/version "1.0.1"}
 }}
