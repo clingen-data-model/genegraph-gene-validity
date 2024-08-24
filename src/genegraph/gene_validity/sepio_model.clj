@@ -170,18 +170,19 @@
                         rdf/union
                         (map #(% gci-model params)
                              initial-construct-queries))
-        linked-model (rdf/union unlinked-model
+        unlinked-clean (unlink-segregations-when-no-proband-and-lod-scores
+                        unlinked-model)
+        linked-model (rdf/union unlinked-clean
                                 (construct-evidence-connections
                                  (rdf/union
-                                  unlinked-model
+                                  unlinked-clean
                                   gdm-sepio-relationships))
                                 (add-legacy-website-id
-                                 unlinked-model
-                                 {:legacy_id (legacy-website-id unlinked-model)}))]
+                                 unlinked-clean
+                                 {:legacy_id (legacy-website-id unlinked-clean)}))]
     (-> linked-model
         add-proband-scores
-        unlink-variant-scores-when-proband-scores-exist
-        unlink-segregations-when-no-proband-and-lod-scores)))
+        unlink-variant-scores-when-proband-scores-exist)))
 
 (defn add-model-fn [event]
   (assoc event

@@ -41,7 +41,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "prod"
+    {:platform "stage"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -64,7 +64,7 @@
                  :graphql-schema (gql-schema/merged-schema
                                   {:executor direct-executor}))
     "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
-                   :version 8
+                   :version 9
                    :name "stage"
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
@@ -372,7 +372,7 @@
 (def gv-tdb
   {:type :rdf
    :name :gv-tdb
-   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v12.nq.gz")
+   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v13.nq.gz")
    :path (str (:local-data-path env) "/gv-tdb")})
 
 (def response-cache-db
