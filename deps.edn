@@ -30,7 +30,7 @@
  {ch.qos.logback/logback-classic                    {:mvn/version "1.5.0"}
   org.clojure/clojure                               {:mvn/version "1.11.2"}
   io.github.clingen-data-model/genegraph-framework
-  {:git/sha "8ecb2224b85a75e03582468e2292e98043c558e7"}
+  {:git/sha "bc4c8984ecb4cd6ae4cdec96b28a69b9eed46e83"}
   com.walmartlabs/lacinia-pedestal
   {:git/sha "075bcdcbb0969fe4dbd15770f29b7273ff872b78"
    :git/url "https://github.com/walmartlabs/lacinia-pedestal.git"}

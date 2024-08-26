@@ -148,7 +148,7 @@
   (rdf/create-query "select ?x where { ?x :owl/sameAs ?y }"))
 
 (defn event->model [event]
-  (let [^Model model (get-in event [::storage/storage :gv-tdb])]
+  (let [model (get-in event [::storage/storage :gv-tdb])]
     (rdf/tx model
       (rdf/statements->model 
        (map
