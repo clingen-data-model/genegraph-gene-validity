@@ -9,13 +9,13 @@
     [validity_proposition :sepio/has-object disease]
     [validity_proposition :rdf/type :sepio/GeneValidityProposition]])
 
-(def actionability-bgp
+#_(def actionability-bgp
   '[[actionability_genetic_condition :sepio/is-about-gene gene]
     [ac_report :sepio/is-about-condition actionability_genetic_condition]
     [ac_report :rdf/type :sepio/ActionabilityReport]
     [actionability_genetic_condition :rdfs/subClassOf disease]])
 
-(def actionability-assertion-bgp
+(def actionability-bgp
   '[[actionability_assertion :sepio/has-subject gene]
     [actionability_assertion :sepio/has-object disease]
     [actionability_assertion :rdf/type :sepio/ActionabilityAssertion]])
@@ -111,7 +111,7 @@
 
 (def actionability-assertions-for-genetic-condition
   (rdf/create-query [:project ['actionability_assertion]
-                     (cons :bgp actionability-assertion-bgp)]))
+                     (cons :bgp actionability-bgp)]))
 
 (def gene-validity-with-sort-bgp
   (conj gene-validity-bgp

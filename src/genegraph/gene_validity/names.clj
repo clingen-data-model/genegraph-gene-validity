@@ -25,6 +25,7 @@
  "cgagent" "http://dataexchange.clinicalgenome.org/agent/"
  "pmid" "https://pubmed.ncbi.nlm.nih.gov/"
  "ro" "http://purl.obolibrary.org/obo/RO_"
+ "so" "http://purl.obolibrary.org/obo/SO_"
  "ga4gh" "https://terms.ga4gh.org/"
  "cvscv" "https://identifiers.org/clinvar.submission:"
  "oboinowl" "http://www.geneontology.org/formats/oboInOwl#"})
@@ -32,6 +33,7 @@
 (add-keyword-mappings
  {:bfo/realizes "http://purl.obolibrary.org/obo/BFO_0000055"
   :bfo/has-part "http://purl.obolibrary.org/obo/BFO_0000051"
+  :so/Allele "http://purl.obolibrary.org/obo/SO_0001023"
   :cg/website-legacy-id "http://dataexchange.clinicalgenome.org/terms/website_legacy_id"
   :hp/AutosomalRecessiveInheritance "http://purl.obolibrary.org/obo/HP_0000007"
   :hp/AutosomalDominantInheritance "http://purl.obolibrary.org/obo/HP_0000006"

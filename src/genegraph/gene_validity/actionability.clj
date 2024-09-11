@@ -12,12 +12,12 @@
 
 (spec/def ::iri #(re-find #"^https://actionability\.clinicalgenome\.org/ac" %))
 
-(spec/def ::gene #(re-matches #"HGNC:\d+" %))
+#_(spec/def ::gene #(re-matches #"HGNC:\d+" %))
 
 (spec/def ::statusFlag #(#{"Released" "Released - Under Revision" "Retracted"} %))
 
 (spec/def ::condition
-  (spec/keys :req-un [:condition/iri ::gene]))
+  (spec/keys :req-un [:condition/iri #_::gene]))
 
 (spec/def ::conditions
   (spec/coll-of ::condition))
@@ -47,18 +47,75 @@
    "Pediatric AWG" "http://dataexchange.clinicalgenome.org/terms/PediatricActionabilityWorkingGroup"
    "Adult AWG" "http://dataexchange.clinicalgenome.org/terms/AdultActionabilityWorkingGroup"})
 
-(defn gene-resource [gene-str]
+#_(defn gene-resource [gene-str]
   (rdf/resource gene-str))
+
+;; http://reg.genome.network/allele/CA321211
+(defn allele-resource [id]
+  (rdf/resource (str "http://reg.genome.network/allele/" id)))
+
+(defn variant-iri [{:keys [variantId id]}]
+  (cond
+    (seq id) (allele-resource id)
+    (seq variantId) (allele-resource variantId)
+    :else (rdf/blank-node)))
+
+(defn variant-record [assertion iri]
+  [[iri :rdf/type :so/Allele]
+   [iri :rdfs/label (first (:descriptor assertion))]])
+
+(comment
+  (mapv
+   variant-record
+   [{:description  "Lorem Ipsum",
+     :descriptor ["GRCh38 Xp22.31(chrX:7195267-7337218)x2"],
+     :ontology "MONDO",
+     :type "Copy Number Variant",
+     :curie "MONDO:0016287",
+     :id "CACN1537911790",
+     :iri "http://purl.obolibrary.org/obo/MONDO_0016287",
+     :uri "MONDO0016287",
+     :assertion "Strong Actionability"}
+    {:description "Other test",
+     :variantId "CA012732",
+     :descriptor ["NC_000014.9:g.23424840G>A"],
+     :ontology "MONDO",
+     :type "Other",
+     :curie "MONDO:0016297",
+     :iri "http://purl.obolibrary.org/obo/MONDO_0016297",
+     :uri "MONDO0016297",
+     :assertion "Strong Actionability"}
+    {:curie "MONDO:0016298",
+     :description "test",
+     :descriptor ["GRCh38 (chrX:add)"],
+     :iri "http://purl.obolibrary.org/obo/MONDO_0016298",
+     :ontology "MONDO",
+     :type "Aneuploidy", 
+     :uri "MONDO0016298", 
+     :variantId ""}
+    {:description "Aneuploidy test",
+     :descriptor ["47,XXY"],
+     :ontology "MONDO",
+     :type "Aneuploidy",
+     :curie "MONDO:0016298",
+     :id "",
+     :iri "http://purl.obolibrary.org/obo/MONDO_0016298",
+     :uri "MONDO0016298",
+     :assertion "Moderate Actionability"}]))
 
 (defn genetic-condition [curation-iri condition]
   (if-let [condition-resource (rdf/resource (:iri condition))]
     (let [gc-node (rdf/blank-node)
-          gene (gene-resource (:gene condition))]
-      [[curation-iri :sepio/is-about-condition gc-node]
-       [gc-node :rdf/type :sepio/GeneticCondition]
-       [gc-node :rdf/type :cg/ActionabilityGeneticCondition]
-       [gc-node :rdfs/subClassOf condition-resource]
-       [gc-node :sepio/is-about-gene gene]])
+          condition-triples [[curation-iri :sepio/is-about-condition gc-node]
+                             [gc-node :rdf/type :sepio/GeneticCondition]
+                             [gc-node :rdf/type :cg/ActionabilityGeneticCondition]
+                             [gc-node :rdfs/subClassOf condition-resource]]]
+      (if-let [gene (:gene condition)]
+        (conj condition-triples [gc-node :sepio/is-about-gene (rdf/resource gene)])
+        (let [v-iri (variant-iri condition)]
+          (concat condition-triples
+                  (conj (variant-record condition v-iri)
+                        [gc-node :sepio/is-about-gene v-iri])))))
     nil))
 
 (defn search-contributions [curation-iri search-date agent-iri]
@@ -75,20 +132,31 @@
              (into #{}))]
     (preferred-conditions [(:iri condition) (:gene condition)])))
 
+;; TODO add variant here too
 (defn assertion [curation assertion-map]
   (let [assertion-iri (rdf/blank-node)
         curation-iri (:iri curation)
         preferred-condition
         (if (is-preferred-condition curation assertion-map)
           [[assertion-iri :rdf/type :cg/ActionabilityAssertionForPreferredCondition]]
-          [])]
-    (concat
-     [[curation-iri :bfo/has-part assertion-iri]
-      [assertion-iri :rdf/type :sepio/ActionabilityAssertion]
-      [assertion-iri :sepio/has-subject (-> assertion-map :gene gene-resource)]
-      [assertion-iri :sepio/has-predicate (-> assertion-map :assertion vocab rdf/resource)]
-      [assertion-iri :sepio/has-object (-> assertion-map :iri rdf/resource)]]
-     preferred-condition)))
+          [])
+        assertion-record (concat
+                          [[curation-iri :bfo/has-part assertion-iri]
+                           [assertion-iri :rdf/type :sepio/ActionabilityAssertion]
+                           #_[assertion-iri :sepio/has-subject (-> assertion-map :gene gene-resource)]
+                           [assertion-iri
+                            :sepio/has-predicate
+                            (-> assertion-map :assertion vocab rdf/resource)]
+                           [assertion-iri
+                            :sepio/has-object
+                            (-> assertion-map :iri rdf/resource)]]
+                          preferred-condition)]
+    (if-let [gene (:gene assertion-map)]
+      (conj assertion-record [assertion-iri :sepio/has-subject (rdf/resource gene)])
+      (let [variant-iri (variant-iri assertion)]
+        (concat assertion-record
+                (conj (variant-record assertion-map variant-iri)
+                      [assertion-iri :sepio/has-subject variant-iri]))))))
 
 (defn total-scores [curation]
   (->> curation
@@ -148,15 +216,16 @@
   (rdf/create-query "select ?x where { ?x :owl/sameAs ?y }"))
 
 (defn event->model [event]
-  (let [model (get-in event [::storage/storage :gv-tdb])]
+  (let [model (get-in event [::storage/storage :gv-tdb])
+        statements (curation->statements (::event/data event))]
     (rdf/tx model
-      (rdf/statements->model 
+      (rdf/statements->model
        (map
         (fn [[s p o]]
           (if (re-find #"https://identifiers\.org/hgnc:" (str o))
             [s p (first (same-as-query model {:y o}))]
             [s p o]))
-        (curation->statements (::event/data event)))))))
+        statements)))))
 
 (defn add-actionability-model-fn [event]
   (assoc event ::model (event->model event)))

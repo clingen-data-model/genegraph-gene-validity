@@ -16,7 +16,7 @@
 
 (defn handle-log-entry-fn [e]
   (let [data (::event/data e)]
-    #_(log/info :duration (- (:end-time data) (:start-time data))
+    (log/info :duration (- (:end-time data) (:start-time data))
               :status (:status data)
               :response-size (:response-size data)
               :start-time (:start-time data)
@@ -42,7 +42,7 @@
    {:log-store
     {:name :log-store
      :type :rocksdb
-     :path "/users/tristan/data/genegraph-neo/log-store-prod-1"}}
+     :path "/users/tristan/data/genegraph-neo/log-store-stage-2"}}
    :processors
    {:api-log-reader
     {:name :api-log-reader
@@ -112,9 +112,9 @@
 
   
   
-  (spit "/Users/tristan/Desktop/problem-query.graphql"
+  (spit "/Users/tristan/Desktop/cel-query.graphql"
         (-> (storage/read @(get-in log-monitor [:storage :log-store :instance])
-                          [:log-record "1720618886905"])
+                          [:log-record "1724459975836"])
             :query
             (json/read-str :key-fn keyword)
             :query))

@@ -1,4 +1,4 @@
-(ns genegraph.user
+1(ns genegraph.user
   (:require [genegraph.framework.protocol]
             [genegraph.framework.kafka :as kafka]
             [genegraph.framework.kafka.admin :as kafka-admin]
@@ -13,6 +13,7 @@
             [genegraph.gene-validity.gci-model2 :as gci-model2]
             [genegraph.gene-validity.sepio-model2 :as gvs]
             [genegraph.gene-validity.graphql.response-cache :as response-cache]
+            [genegraph.gene-validity.graphql.common.curation :as curation]
             [portal.api :as portal]
             [clojure.data.json :as json]
             [clojure.data.csv :as csv]
@@ -179,6 +180,9 @@
   (time (get-events-from-topic gv/gene-validity-legacy-complete-topic))
 
   (time (get-events-from-topic gv/gene-validity-sepio-topic))
+
+  (time (get-events-from-topic gv/dosage-topic))
+
 
   (/ 822646.824791 1000 60)
 )
@@ -1326,11 +1330,7 @@ select ?x where {
                       ::event/skip-publish-effects true)))
 
 
-    (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
-    (rdf/tx tdb
-      (let [r (rdf/resource "CGGV:fe942eb4-ba59-43bf-89e0-243522ba7cbf"
-                        tdb)]
-        (rdf/pp-model (storage/read tdb (str r))))))
+
 
   
   (-> dnase1
@@ -1340,6 +1340,36 @@ select ?x where {
       rdf/pp-model)
   )
 
+;; nulls in segregation evidence 2024-08-23 -- per emails from phil and erin
+(comment
+  (defn process-gv-event [e]
+    (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+               (assoc e 
+                      ::event/completion-promise (promise)
+                      ::event/skip-local-effects true
+                      ::event/skip-publish-effects true)))
+  
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (let [r (rdf/resource "CGGV:d9a312b4-5713-455c-897f-1f6f5e433f0b"
+                            tdb)]
+        (rdf/pp-model (storage/read tdb (str r))))))
+
+  (def cel
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2024-08-08.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"d9a312b4-5713-455c-897f-1f6f5e433f0b"
+                             (::event/value %)))
+           (into []))))
+
+  (-> cel
+      last
+      event/deserialize
+      process-gv-event
+      :gene-validity/model
+      rdf/pp-model)
+
+  )
 
 (comment
   (time
@@ -1604,4 +1634,249 @@ select ?x where {
                      (gene-set stage-gv-result)))
 
     (tap> prod-result)
+  )
+
+;; testing failure of actionability, dosage to load
+
+(def latest-dosage )
+(comment
+  
+  (let [actionability-path "/Users/tristan/data/genegraph-neo/actionability-2024-08-24.edn.gz"
+        actionability-topic (get-in gv-test-app [:topics :actionability])]
+    (event-store/with-event-reader [r actionability-path]
+      (->> (event-store/event-seq r)
+           (run! #(p/publish actionability-topic %)))))
+  (let [dosage-path "/Users/tristan/data/genegraph-neo/gene_dosage_raw-2024-08-24.edn.gz"
+        dosage-topic (get-in gv-test-app [:topics :dosage])]
+    (event-store/with-event-reader [r dosage-path]
+      (->> (event-store/event-seq r)
+           #_(take 10)
+           (run! #(p/publish dosage-topic %)))))
+
+  )
+
+;; actionability aneuploidy, etc
+(comment
+  (defn process-ac-event [e]
+    (p/process (get-in gv-test-app [:processors
+                                    :import-actionability-curations])
+               (assoc e 
+                      ::event/completion-promise (promise)
+                      ::event/skip-local-effects true
+                      ::event/skip-publish-effects true)))
+  
+  (let [actionability-path "/Users/tristan/data/genegraph-neo/actionability-2024-08-28.edn.gz"
+        actionability-topic (get-in gv-test-app [:topics :actionability])]
+    (event-store/with-event-reader [r actionability-path]
+      (->> (event-store/event-seq r)
+           (map event/deserialize)
+           (filter #(and (= "Variant-Condition"
+                            (get-in % [::event/data :curationType]))
+                         (#{"Released" "Released - Under Revision"}
+                          (get-in % [::event/data :statusFlag]))))
+           (take-last 1)
+           (mapv process-ac-event)
+           (run! #(rdf/pp-model (:genegraph.gene-validity.actionability/model %))))))
+
+  (let [actionability-path "/Users/tristan/data/genegraph-neo/actionability-2024-08-28.edn.gz"
+        actionability-topic (get-in gv-test-app [:topics :actionability])]
+    (event-store/with-event-reader [r actionability-path]
+      (->> (event-store/event-seq r)
+           (map event/deserialize)
+           (filter #(and (= "Variant-Condition"
+                            (get-in % [::event/data :curationType]))
+                         (#{"Released" "Released - Under Revision"}
+                          (get-in % [::event/data :statusFlag]))))
+           (take-last 1)
+           (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %)))))
+
+
+  ;; rerun existing curations
+  (let [actionability-path "/Users/tristan/data/genegraph-neo/actionability-2024-09-03.edn.gz"
+        actionability-topic (get-in gv-test-app [:topics :actionability])]
+    (event-store/with-event-reader [r actionability-path]
+      (->> (event-store/event-seq r)
+           (run! #(p/publish (get-in gv-test-app [:topics :actionability]) %)))))
+
+  (let [actionability-path "/Users/tristan/data/genegraph-neo/actionability-2024-08-28.edn.gz"
+        actionability-topic (get-in gv-test-app [:topics :actionability])]
+    (event-store/with-event-reader [r actionability-path]
+      (->> (event-store/event-seq r)
+           (map event/deserialize)
+           (filter #(and (= "Variant-Condition"
+                            (get-in % [::event/data :curationType]))
+                         (#{"Released" "Released - Under Revision"}
+                          (get-in % [::event/data :statusFlag]))))
+           (take-last 10)
+           tap>)))
+
+  (let [actionability-path "/Users/tristan/data/genegraph-neo/actionability-2024-08-28.edn.gz"
+        actionability-topic (get-in gv-test-app [:topics :actionability])]
+    (event-store/with-event-reader [r actionability-path]
+      (->> (event-store/event-seq r)
+           (map event/deserialize)
+           (filter #(and (= "Variant-Condition"
+                            (get-in % [::event/data :curationType]))
+                         (#{"Released" "Released - Under Revision"}
+                          (get-in % [::event/data :statusFlag]))))
+           (mapcat #(get-in % [::event/data :assertions]))
+           (filter #(= "Aneuploidy" (:type %)))
+           (into [])
+           tap>)))
+
+  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx db
+      (rdf/pp-model (storage/read db "https://10.15.53.110/ac/Pediatric/api/sepio/doc/AC1056"))))
+
+
+  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx db
+      (-> (rdf/resource "_:0b3da039-2002-407f-abac-82f499ed032c" db)
+          (rdf/ld-> [[:sepio/has-subject :<]]))))
+  
+  
+  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx db
+      (let [q (rdf/create-query "
+select ?x {
+?x :rdfs/label ?label
+}")]
+        (q db {:label "GRCh38 (chrX:add)"}))))
+
+  (let [db @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx db
+      (-> (rdf/resource "http://purl.obolibrary.org/obo/MONDO_0016298" db)
+          (rdf/ld-> [[:sepio/has-object :<]]))))
+
+  
+  (def http-client (hc/build-http-client {}))
+  
+  
+  
+  (let [disease-query "
+query ($iri : String) {
+	disease(iri: $iri) {
+		label
+		genetic_conditions {
+			gene {
+				label
+			}
+			actionability_assertions {
+				source
+				report_label
+				report_date
+				attributed_to {
+					curie
+					label
+				}
+			}
+		}
+	}
+}
+"]
+    (tap>
+     (hc/post "https://genegraph-gene-validity.stage.clingen.app/api"
+              {:http-client http-client
+               :content-type :json
+               :body (json/write-str {:query disease-query
+                                      :variables {:iri "MONDO:0016298"}})})))
+
+  (let [ac-query "
+{
+  diseases(curation_activity: ACTIONABILITY, limit: null) {
+    count
+    disease_list {
+      curie
+    }
+  }
+}
+"
+        gql-query (fn [svr]
+                    (->> (-> (hc/post svr
+                                      {:http-client http-client
+                                       :content-type :json
+                                       :body (json/write-str {:query ac-query})})
+                             :body
+                             (json/read-str :key-fn keyword)
+                             (get-in [:data :diseases :disease_list]))
+                         (map :curie)
+                         set))
+        stage "https://genegraph-gene-validity.stage.clingen.app/api"
+        local "http://localhost:8888/api"]
+    (tap>
+     (set/difference (gql-query stage)
+                     (gql-query local))))
+  
+;; "Aneuploidy"
+;; 20
+;; "Copy Number Variant"
+;; 34
+;; "Other"
+
+  
+;; 2
+
+#{"MONDO:0013791"}
+#{"MONDO:0016298" "MONDO:0007648" "MONDO:0007607" "MONDO:0007291"
+  "MONDO:0019268"
+  "MONDO:0017132"
+  "MONDO:0019341"
+  "MONDO:0010119"
+  "MONDO:0018750" "MONDO:0008646" "MONDO:0014561" "MONDO:0010565"}
+
+  ;; rerun existing curations
+  (let [actionability-path "/Users/tristan/data/genegraph-neo/actionability-2024-09-03.edn.gz"
+        actionability-topic (get-in gv-test-app [:topics :actionability])]
+    (event-store/with-event-reader [r actionability-path]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"0007648" (::event/value %)))
+           (take-last 1)
+           (mapv process-ac-event)
+           (run! #(rdf/pp-model (:genegraph.gene-validity.actionability/model %)))
+           #_(run! #(p/publish (get-in gv-test-app [:topics :actionability]) %)))))
+
+  )
+
+;; Cleaning up unused topics
+(comment
+  (def topics
+   (with-open [admin-client (kafka-admin/create-admin-client gv/data-exchange)]
+     (kafka-admin/topics admin-client)))
+
+  (tap> topics)
+  (tap>
+   (->> topics
+        (filter #(re-find #"gg-.*-dev-" %))
+        (remove #(re-find #"-gvs2-" %))
+        (remove #(re-find #"prod-8" %))))
+  
+
+  (with-open [admin-client (kafka-admin/create-admin-client gv/data-exchange)]
+    (->> topics
+         (filter #(re-find #"gg-.*-dev-" %))
+         (remove #(re-find #"-gvs2-" %))
+         (remove #(re-find #"prod-8" %))
+         (run! #(kafka-admin/delete-topic admin-client %))))
+
+  (with-open [admin-client (kafka-admin/create-admin-client gv/data-exchange)]
+    (->> ["gene_validity_sepio-v1"
+          "gene_validity_complete-v1"
+          "gene_validity_sepio"
+          "gene-validity-legacy-complete-v1"]
+         (run! #(kafka-admin/delete-topic admin-client %))))
+
+  
+  
+  (with-open [admin-client (kafka-admin/create-admin-client gv/data-exchange)]
+    (run! #(try
+             (kafka-admin/delete-topic admin-client (:kafka-topic %))
+             (catch Exception e
+               (log/info :msg "Exception deleting topic "
+                         :topic (:kafka-topic %))))
+          [#_gv/fetch-base-events-topic
+           #_gv/base-data-topic
+           #_gv/gene-validity-complete-topic
+           #_gv/gene-validity-legacy-complete-topic
+           #_gv/gene-validity-sepio-topic
+           #_gv/api-log-topic]))
   )
