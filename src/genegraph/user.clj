@@ -1,4 +1,4 @@
-1(ns genegraph.user
+(ns genegraph.user
   (:require [genegraph.framework.protocol]
             [genegraph.framework.kafka :as kafka]
             [genegraph.framework.kafka.admin :as kafka-admin]
@@ -1879,4 +1879,43 @@ query ($iri : String) {
            #_gv/gene-validity-legacy-complete-topic
            #_gv/gene-validity-sepio-topic
            #_gv/api-log-topic]))
+  )
+
+;; SOP 11 update
+(comment
+  (def last-10-gv
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2024-09-23.edn.gz"]
+      (->> (event-store/event-seq r)
+           (take-last 10)
+           (into []))))
+
+  (defn process-gv-event [e]
+    (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+               (assoc e 
+                      ::event/completion-promise (promise)
+                      ::event/skip-local-effects true
+                      ::event/skip-publish-effects true)))
+
+  (def sop-query
+    (rdf/create-query "
+select ?sop where {
+  ?curation a :sepio/GeneValidityEvidenceLevelAssertion ;
+  :sepio/is-specified-by ?sop .
+} "))
+
+  (->> last-10-gv
+       (map process-gv-event)
+       (map :gene-validity/model)
+       (map sop-query)
+       (map first)
+       tap>) 
+  
+  (->> (-> "base.edn" io/resource slurp edn/read-string)
+       (filter #(= "http://purl.obolibrary.org/obo/sepio-clingen-gene-validity"
+                   (:name %)))
+       (run! #(p/publish (get-in gv-test-app
+                                 [:topics :fetch-base-events])
+                         {::event/data %
+                          ::event/key (:name %)})))
+
   )

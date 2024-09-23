@@ -42,7 +42,7 @@
    {:log-store
     {:name :log-store
      :type :rocksdb
-     :path "/users/tristan/data/genegraph-neo/log-store-stage-2"}}
+     :path "/users/tristan/data/genegraph-neo/log-store-prod-2"}}
    :processors
    {:api-log-reader
     {:name :api-log-reader
@@ -67,16 +67,20 @@
   (def log-monitor (p/init log-monitor-def))
   (p/start log-monitor)
   (p/stop log-monitor)
-  (-> (rocksdb/range-get @(get-in log-monitor [:storage :log-store :instance])
+  (-> (storage/scan @(get-in log-monitor [:storage :log-store :instance])
                          [:log-record])
       last
       tap>)
 
-  (->> (rocksdb/range-get @(get-in log-monitor [:storage :log-store :instance])
+  (->> (storage/scan @(get-in log-monitor [:storage :log-store :instance])
                           [:log-record])
        (filter #(not= (:status %) 200))
        (map #(assoc % :duration (- (:end-time %) (:start-time %))))
-       (map :duration))
+       (map #(first (:error-message %)))
+       frequencies
+       tap>
+       #_(map :duration)
+       #_count)
   
   
   (->> (rocksdb/range-get @(get-in log-monitor [:storage :log-store :instance])
