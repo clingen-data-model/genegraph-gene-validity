@@ -41,8 +41,8 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "prod"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
+    {:platform "dev"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
      :local-data-path "data/"}
     {}))
 
@@ -53,8 +53,8 @@
              :graphql-schema (fn []
                                (gql-schema/merged-schema
                                 {:executor direct-executor}))}
-    "dev" (assoc (env/build-environment "522856288592" ["dataexchange-genegraph"])
-                 :version 8
+    "dev" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph-dev"])
+                 :version 9
                  :name "dev"
                  :function (System/getenv "GENEGRAPH_FUNCTION")
                  :kafka-user "User:2189780"
@@ -86,7 +86,10 @@
     {}))
 
 (def env
-  (merge local-env admin-env))
+  (merge (assoc local-env :dataexchange-genegraph
+                (or (:dataexchange-genegraph local-env)
+                    (:dataexchange-genegraph-dev local-env))) 
+         admin-env))
 
 (defn qualified-kafka-name [prefix]
   (str prefix "-" (:name env) "-" (:version env)))
