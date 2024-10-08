@@ -59,7 +59,7 @@
                  :function (System/getenv "GENEGRAPH_FUNCTION")
                  :kafka-user "User:2189780"
                  :fs-handle {:type :gcs
-                             :bucket "genegraph-framework-dev"}
+                             :bucket "genegraph-gene-validity-dev-1"}
                  :local-data-path "/data"
                  :graphql-schema (gql-schema/merged-schema
                                   {:executor direct-executor}))
