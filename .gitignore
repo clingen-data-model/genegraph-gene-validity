@@ -29,3 +29,7 @@ pom.xml.asc
 # Logging
 *.log
 /logs/
+
+# build artifacts
+.clerk/
+public/
