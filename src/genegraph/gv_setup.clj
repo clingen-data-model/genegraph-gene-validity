@@ -108,7 +108,7 @@
                           ::event/key (:name %)})))
 
   (->> (-> "base.edn" io/resource slurp edn/read-string)
-       (filter #(= "http://dataexchange.clinicalgenome.org/missing-dosage-curations" (:name %)))
+       (filter #(= "https://www.genenames.org/" (:name %)))
        (run! #(p/publish (get-in gv-seed-base-event
                                  [:topics :fetch-base-events])
                          {::event/data %

@@ -1919,3 +1919,74 @@ select ?sop where {
                           ::event/key (:name %)})))
 
   )
+
+;; Erin report -- quarterly update of reports published per
+;; GCEP
+(comment
+  (storage/restore-snapshot
+   (get-in gv-test-app [:storage :gv-tdb]))
+  (tap> (get-in gv-test-app [:storage :gv-tdb]))
+
+  (let [q (rdf/create-query "
+select ?x where { ?x a :sepio/GeneValidityProposition } limit 1")
+        tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (->> (q tdb)
+           (mapv #(storage/read tdb (str %)))
+           (run! rdf/pp-model))))
+  )
+
+
+
+;; testing partial updates
+(comment
+  (def last-50-gv
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2024-10-16.edn.gz"]
+      (->> (event-store/event-seq r)
+           (take-last 10)
+           (into []))))
+
+  (defn process-gv-event [e]
+    (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+               (assoc e
+                      ::event/completion-promise (promise)
+                      ::event/skip-local-effects true
+                      ::event/skip-publish-effects true)))
+  
+  (->> last-50-gv
+       #_(map #(-> % ::event/timestamp Instant/ofEpochMilli))
+       (take-last 1)
+       (map #(:gene-validity/model (process-gv-event %)))
+       (run! rdf/pp-model))
+
+  (defn process-gv-event [e]
+    (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+               (assoc e 
+                      ::event/completion-promise (promise)
+                      ::event/skip-local-effects true
+                      ::event/skip-publish-effects true)))
+
+  (def sop-query
+    (rdf/create-query "
+select ?sop where {
+  ?curation a :sepio/GeneValidityEvidenceLevelAssertion ;
+  :sepio/is-specified-by ?sop .
+} "))
+
+  (->> last-10-gv
+       (map process-gv-event)
+       (map :gene-validity/model)
+       (map sop-query)
+       (map first)
+       tap>) 
+  
+  (->> (-> "base.edn" io/resource slurp edn/read-string)
+       (filter #(= "http://purl.obolibrary.org/obo/sepio-clingen-gene-validity"
+                   (:name %)))
+       (run! #(p/publish (get-in gv-test-app
+                                 [:topics :fetch-base-events])
+                         {::event/data %
+                          ::event/key (:name %)})))
+
+  )
+

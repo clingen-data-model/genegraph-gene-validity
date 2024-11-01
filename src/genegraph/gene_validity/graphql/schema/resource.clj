@@ -132,4 +132,7 @@
    :type :Resource
    :resolve (fn [context args _]
               (let [r (rdf/resource (:iri args) (:db context))]
-                (or (rdf/ld1-> r [[:cg/website-legacy-id :<]]) r)))})
+                (or (rdf/ld1-> r [[:cg/website-legacy-id :<]])
+                    ;; Phil sends requests from the website that match neither the direct IRI,
+                    ;; nor the assertion_ syntax. This should address that issue.
+                    (s/replace r #"assertion_" ""))))}) 
