@@ -124,6 +124,9 @@
 ;; Getting rid of website-legacy-ids for the time being
 ;; revisit original file in Genegraph for previous implementation
 
+(defn phil-requested-assertion_be-ok-in-iris [iri]
+  (s/replace iri #"assertion_([0-9a-f\-]{36}).*" "$1"))
+
 (def resource-query
   {:name :resource
    :graphql-type :query
@@ -131,8 +134,8 @@
    :args {:iri {:type 'String}}
    :type :Resource
    :resolve (fn [context args _]
-              (let [r (rdf/resource (:iri args) (:db context))]
-                (or (rdf/ld1-> r [[:cg/website-legacy-id :<]])
-                    ;; Phil sends requests from the website that match neither the direct IRI,
-                    ;; nor the assertion_ syntax. This should address that issue.
-                    (s/replace r #"assertion_" ""))))}) 
+              ;; Phil sends requests from the website that match neither the direct IRI,
+              ;; nor the assertion_ syntax. This should address that issue.
+              (let [r (rdf/resource (phil-requested-assertion_be-ok-in-iris (:iri args))
+                                    (:db context))]
+                (or (rdf/ld1-> r [[:cg/website-legacy-id :<]]) r)))}) 
