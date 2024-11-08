@@ -5,7 +5,6 @@ FROM clojure:temurin-21-tools-deps-jammy AS builder
 RUN apt-get update && apt-get install -y npm
 COPY deps.edn /usr/src/app/deps.edn
 WORKDIR /usr/src/app
-RUN clojure -X:deps prep
 RUN clojure -P
 COPY . /usr/src/app
 RUN clojure -T:build uber
