@@ -41,8 +41,8 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "dev"
-     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG_DEV")
+    {:platform "prod"
+     :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
 

@@ -92,6 +92,7 @@
    genetic-condition/mode-of-inheritance,
    :gv-contribution/agent contribution/agent,
    :gv-contribution/realizes contribution/realizes,
+   :gv-contribution/date contribution/date,
    :resource/alternative-label resource/alternative-label,
    :resource/curie resource/curie,
    :resource/iri resource/iri,

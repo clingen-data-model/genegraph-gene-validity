@@ -118,6 +118,8 @@
 
 (comment
   (def gv-test-app (p/init gv-test-app-def))
+
+
   (p/start gv-test-app)
   (p/stop gv-test-app)
   
@@ -178,6 +180,9 @@
   (time (get-events-from-topic gv/gene-validity-complete-topic))
   (get-events-from-topic gv/gene-validity-raw-topic)
   (time (get-events-from-topic gv/gene-validity-legacy-complete-topic))
+
+  (time (get-events-from-topic gv/fetch-base-events-topic))
+  gv/fetch-base-events-topic
 
   (time (get-events-from-topic gv/gene-validity-sepio-topic))
 
@@ -1989,4 +1994,33 @@ select ?sop where {
                           ::event/key (:name %)})))
 
   )
+
+
+(comment
+  (-> "/Users/tristan/Downloads/Download message as JSON_2024-11-01T16_09_07.355Z.json"
+      (json/read-str :key-fn keyword)
+      tap>)
+
+  (def adar
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2024-11-01.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filter #(re-find #"9cf90ec8-f2fd-4b93-89ca-d20e628a6109"
+                             (::event/value %)))
+           (into []))))
+
+  (defn process-gv-event [e]
+    (p/process (get-in gv-test-app [:processors :gene-validity-transform])
+               (assoc e
+                      ::event/completion-promise (promise)
+                      ::event/skip-local-effects true
+                      ::event/skip-publish-effects true)))
+  
+  (->> adar
+       last
+       process-gv-event
+       :gene-validity/model
+       rdf/pp-model)
+  
+  )
+
 

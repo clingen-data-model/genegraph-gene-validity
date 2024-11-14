@@ -181,7 +181,8 @@
   :ValidityContribution
   {:fields
    {:agent {:type :Agent, :resolve :gv-contribution/agent},
-    :realizes {:type :Class, :resolve :gv-contribution/realizes}}},
+    :realizes {:type :Class, :resolve :gv-contribution/realizes}
+    :date {:type String :resolve :gv-contribution/date}}},
   :Gene
   {:description
    "A genomic feature (a gene or a region). Along with conditions, one of the basic units of curation.",
