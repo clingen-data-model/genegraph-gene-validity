@@ -45,6 +45,9 @@
          gv/gv-transformer-def
          gv/gv-graphql-endpoint-def])
 
+  (run! #(kafka-admin/configure-kafka-for-app! (p/init %))
+        [gv/gv-dev-transformer-def])
+
   ;; Delete all (or some) Genegraph-created topics
   ;; Use this to fix mistakes.
   (with-open [admin-client (kafka-admin/create-admin-client gv/data-exchange)]

@@ -43,8 +43,9 @@
 
 ;; Portal
 (comment
-  (def p (portal/open))
-  (add-tap #'portal/submit)
+  (do
+    (def p (portal/open))
+    (add-tap #'portal/submit))
   (portal/close)
   (portal/clear)
   )
@@ -119,7 +120,6 @@
 (comment
   (def gv-test-app (p/init gv-test-app-def))
 
-
   (p/start gv-test-app)
   (p/stop gv-test-app)
   
@@ -180,6 +180,7 @@
   (time (get-events-from-topic gv/gene-validity-complete-topic))
   (get-events-from-topic gv/gene-validity-raw-topic)
   (time (get-events-from-topic gv/gene-validity-legacy-complete-topic))
+  (time (get-events-from-topic gv/gene-validity-raw-dev))
 
   (time (get-events-from-topic gv/fetch-base-events-topic))
   gv/fetch-base-events-topic
@@ -2024,3 +2025,41 @@ select ?sop where {
   )
 
 
+;; Testing MOI: TypifiedBySomaticMosaicism
+(comment
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2025-04-01.edn.gz"]
+    (-> (event-store/event-seq r)
+        first
+        ::event/format))
+
+  (-> (slurp "/Users/tristan/data/genegraph-neo/gci-mosaic.json")
+      json/read-str
+      first
+      (get "value")
+      tap>
+      )
+
+  
+  (-> {::event/data (-> (slurp "/Users/tristan/data/genegraph-neo/gci-mosaic.json")
+                        (json/read-str :key-fn keyword)
+                        first
+                        :value)}
+      process-gv-event
+      :gene-validity/model
+      rdf/pp-model
+      )
+
+ 
+  
+  )
+
+
+;; Testing dev instances
+(comment
+  (def gv-dev-transfomer (p/init gv/gv-dev-transformer-def))
+  (p/start gv-dev-transfomer)
+  (p/stop gv-dev-transfomer)
+
+  (def gv-dev-endpoint (p/init gv/gv-dev-graphql-endpoint-def))
+  (p/start gv-dev-endpoint)
+  )

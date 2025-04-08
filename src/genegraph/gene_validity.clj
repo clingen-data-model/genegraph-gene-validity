@@ -41,7 +41,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "prod"
+    {:platform "stage"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -121,6 +121,22 @@
    :serialization :json
    :buffer-size 5
    :kafka-topic "gene_validity_complete"
+   :kafka-topic-config {}})
+
+(def gene-validity-raw-dev
+  {:name :gene-validity-raw-dev
+   :kafka-cluster :data-exchange
+   :serialization :json
+   :buffer-size 5
+   :kafka-topic "gene_validity_raw_dev"
+   :kafka-topic-config {}})
+
+(def gene-validity-sepio-dev-topic
+  {:name :gene-validity-sepio-dev
+   :kafka-cluster :data-exchange
+   :serialization ::rdf/n-triples
+   :buffer-size 5
+   :kafka-topic (qualified-kafka-name "gg-gvs-dev")
    :kafka-topic-config {}})
 
 (def gene-validity-sepio-topic 
@@ -317,6 +333,13 @@
                            :path "genegraph-version-store-snapshot-v4.tar.lz4")
    :path (str (:local-data-path env) "version-store")})
 
+(def gene-validity-dev-version-store
+  {:name :gene-validity-version-store
+   :type :rocksdb
+   :snapshot-handle (assoc (:fs-handle env)
+                           :path "genegraph-dev-version-store-snapshot-v4.tar.lz4")
+   :path (str (:local-data-path env) "version-store")})
+
 (defn report-transform-errors-fn [event]
   (Thread/startVirtualThread
    (fn []
@@ -326,9 +349,9 @@
                           :offset (::event/offset event)
                           :key (::event/key event))
        false (log/warn :fn ::report-transform-errors
-                          :msg "processing error"
-                          :offset (::event/offset event)
-                          :key (::event/key event))
+                       :msg "processing error"
+                       :offset (::event/offset event)
+                       :key (::event/key event))
        true)))
   event)
 
@@ -358,6 +381,19 @@
                   versioning/add-version]})
 
 
+(def dev-transform-processor
+  {:type :processor
+   :name :gene-validity-transform-dev
+   :subscribe :gene-validity-complete-dev
+   :backing-store :gene-validity-version-store
+   :interceptors [report-transform-errors
+                  gci-model/add-gci-model
+                  sepio-model/add-model
+                  add-iri
+                  add-dev-publish-actions
+                  versioning/add-version]})
+
+
 
 ;;;; Base
 
@@ -377,6 +413,12 @@
    :name :gv-tdb
    :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-v15.nq.gz")
    :path (str (:local-data-path env) "/gv-tdb")})
+
+(def gv-tdb-dev
+  {:type :rdf
+   :name :gv-tdb-dev
+   :snapshot-handle (assoc (:fs-handle env) :path "gv-tdb-dev-v15.nq.gz")
+   :path (str (:local-data-path env) "/gv-tdb-dev")})
 
 (def response-cache-db
   {:type :rocksdb
@@ -650,6 +692,24 @@
                        :kafka-transactional-id (qualified-kafka-name "gv-transform"))}
    :http-servers gv-ready-server})
 
+(def gv-dev-transformer-def
+  {:type :genegraph-app
+   :kafka-clusters {:data-exchange data-exchange}
+   :topics {:gene-validity-complete
+            (assoc gene-validity-raw-dev
+                   :type :kafka-consumer-group-topic
+                   :kafka-consumer-group consumer-group
+                   :buffer-size 5)
+            :gene-validity-sepio
+            (assoc gene-validity-sepio-dev-topic
+                   :type :kafka-producer-topic)}
+   :storage {:gene-validity-version-store gene-validity-dev-version-store}
+   :processors {:gene-validity-transform-dev
+                (assoc transform-processor
+                       :kafka-cluster :data-exchange
+                       :kafka-transactional-id (qualified-kafka-name "gv-transform-dev"))}
+   :http-servers gv-ready-server})
+
 (def reporter-interceptor
   (interceptor/interceptor
    {:name ::reporter
@@ -689,10 +749,50 @@
                 :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
    :http-servers gv-http-server})
 
+(def gv-dev-graphql-endpoint-def
+  {:type :genegraph-app
+   :kafka-clusters {:data-exchange data-exchange}
+   :storage {:gv-tdb (assoc gv-tdb-dev :load-snapshot true)
+             :response-cache-db response-cache-db}
+   :topics {:gene-validity-sepio
+            (assoc gene-validity-sepio-topic
+                   :type :kafka-reader-topic)
+            :gene-validity-sepio-dev
+            (assoc gene-validity-sepio-dev-topic
+                   :type :kafka-reader-topic)
+            :api-log
+            (assoc api-log-topic
+                   :type :kafka-producer-topic)
+            :dosage
+            (assoc dosage-topic
+                   :type :kafka-reader-topic)
+            :actionability
+            (assoc actionability-topic
+                   :type :kafka-reader-topic)
+            :gene-validity-legacy-complete
+            (assoc gene-validity-legacy-complete-topic
+                   :type :kafka-reader-topic)
+            :base-data
+            (assoc base-data-topic
+                   :type :kafka-reader-topic)}
+   :processors {:import-gv-curations import-gv-curations
+                :import-gv-dev-curations (assoc import-gv-curations
+                                                :subscribe
+                                                :gene-validity-sepio-dev)
+                :import-base-file import-base-processor
+                :graphql-api graphql-api
+                :graphql-ready graphql-ready
+                :import-actionability-curations import-actionability-curations
+                :import-dosage-curations import-dosage-curations
+                :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
+   :http-servers gv-http-server})
+
 (def genegraph-function
   {"fetch-base" gv-base-app-def
    "transform-curations" gv-transformer-def
-   "graphql-endpoint" gv-graphql-endpoint-def})
+   "graphql-endpoint" gv-graphql-endpoint-def
+   "dev-transform-curations" gv-dev-transformer-def
+   "dev-graphql-endpoint" gv-dev-graphql-endpoint-def})
 
 (defn store-snapshots! [app]
   (->> (:storage app)
