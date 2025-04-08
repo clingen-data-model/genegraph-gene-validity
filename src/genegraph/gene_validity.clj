@@ -381,20 +381,6 @@
                   versioning/add-version]})
 
 
-(def dev-transform-processor
-  {:type :processor
-   :name :gene-validity-transform-dev
-   :subscribe :gene-validity-complete-dev
-   :backing-store :gene-validity-version-store
-   :interceptors [report-transform-errors
-                  gci-model/add-gci-model
-                  sepio-model/add-model
-                  add-iri
-                  add-dev-publish-actions
-                  versioning/add-version]})
-
-
-
 ;;;; Base
 
 (def fetch-base-processor
