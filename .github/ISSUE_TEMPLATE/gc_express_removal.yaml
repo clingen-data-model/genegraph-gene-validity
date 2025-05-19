@@ -2,7 +2,7 @@ name: GC Express Removal
 description: Request to remove a gene express entry from the website
 title: "[GC Express]: "
 labels: [genevalidity, gcexpress]
-assignees: toneillbroad
+assignees: tnavatar
 body:
   - type: input
     id: requester
