@@ -215,6 +215,10 @@
     (->> (event-store/event-seq r)
          count))
 
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2025-05-21.edn.gz"]
+    (->> (event-store/event-seq r)
+         count))
+
   
 
   )
@@ -2062,4 +2066,19 @@ select ?sop where {
 
   (def gv-dev-endpoint (p/init gv/gv-dev-graphql-endpoint-def))
   (p/start gv-dev-endpoint)
+  (p/stop gv-dev-endpoint)
+  )
+
+
+;; Investigating FAT4 issues
+
+(comment
+  (def fat4uuid #"32ce4642-0431-4bd8-b1da-fb69ef6b01da")
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2025-05-21.edn.gz"]
+    (->> (event-store/event-seq r)
+        (filter #(re-find fat4uuid (::event/value %)))
+        (mapv event/deserialize)
+        last
+        tap>))
   )

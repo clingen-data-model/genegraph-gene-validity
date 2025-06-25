@@ -41,7 +41,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "stage"
+    {:platform "prod"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -772,6 +772,8 @@
                 :import-dosage-curations import-dosage-curations
                 :import-gene-validity-legacy-report gene-validity-legacy-report-processor}
    :http-servers gv-http-server})
+
+
 
 (def genegraph-function
   {"fetch-base" gv-base-app-def
