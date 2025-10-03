@@ -73,10 +73,17 @@
         genes-as-triple
         rdf/statements->model)))
 
+(defmethod rdf/as-model :genegraph.api.base/hgnc [{:keys [source]}]
+  (log/info :fn ::rdf/as-model :format :genegraph.gene-validity.base/hgnc)
+  (with-open [r (io/reader (storage/->input-stream source))]
+    (-> (json/read r :key-fn keyword)
+        genes-as-triple
+        rdf/statements->model)))
+
 (comment
   (take 50
-   (rdf/as-model {:format :genegraph.gene-validity.base/hgnc
-                  :source (io/file "/users/tristan/data/genegraph-neo/hgnc.json")}))
+        (rdf/as-model {:format :genegraph.gene-validity.base/hgnc
+                       :source (io/file "/users/tristan/data/genegraph-neo/hgnc.json")}))
 
   (rdf/resource :skos/prefLabel)
   )

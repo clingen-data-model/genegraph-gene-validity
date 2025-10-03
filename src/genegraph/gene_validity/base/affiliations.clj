@@ -31,3 +31,11 @@
       csv/read-csv
       affiliations-to-triples
       rdf/statements->model))
+
+(defmethod rdf/as-model :genegraph.api.base/affiliations [{:keys [source]}]
+  (-> source
+      storage/->input-stream
+      io/reader
+      csv/read-csv
+      affiliations-to-triples
+      rdf/statements->model))

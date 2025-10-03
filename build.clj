@@ -86,7 +86,6 @@
 (def domain-name
   "genegraph-legacy-test.prod.clingen.app")
 
-
 (defn cert []
   {:apiVersion "networking.gke.io/v1"
    :kind "ManagedCertificate"

@@ -100,6 +100,13 @@
          (mapcat gci-express-report-to-triples)
          rdf/statements->model)))
 
+(defmethod rdf/as-model :genegraph.api.base/gci-express
+  [{:keys [source]}]
+  (with-open [r (io/reader (storage/->input-stream source))]
+    (->> (json/read r :key-fn keyword)
+         (mapcat gci-express-report-to-triples)
+         rdf/statements->model)))
+
 
 
 (comment

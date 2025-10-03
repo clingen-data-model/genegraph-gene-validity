@@ -31,6 +31,27 @@
 ;; genes
 ;;
 
+(def base-files-to-load
+  #{"http://dataexchange.clinicalgenome.org/gci-express"
+    "http://purl.obolibrary.org/obo/so.owl"
+    "http://www.ebi.ac.uk/efo"
+    "http://www.w3.org/ns/sparql-service-description#"
+    "http://purl.org/dc/terms/"
+    "http://dataexchange.clinicalgenome.org/missing-dosage-curations"
+    "http://purl.obolibrary.org/obo/iao/ontology-metadata.owl"
+    "https://www.genenames.org/"
+    "http://purl.obolibrary.org/obo/mondo.owl"
+    "http://www.w3.org/2004/02/skos/core"
+    #_"https://affils.clinicalgenome.org/"
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    "http://www.w3.org/2011/content#"
+    "http://purl.obolibrary.org/obo/bfo.owl"
+    "http://dataexchange.clinicalgenome.org/affiliations"
+    "http://purl.obolibrary.org/obo/hp.owl"
+    "https://www.w3.org/2002/07/owl"
+    "http://purl.obolibrary.org/obo/ro.owl"
+    "http://www.w3.org/2000/01/rdf-schema#"})
+
 (defn output-handle [event]
   (-> event
       ::handle
@@ -76,7 +97,10 @@
    :base "new-base/"})
 
 (defn read-base-data-fn [event]
-  (assoc event ::model (rdf/as-model (::event/data event))))
+  (log/info :fn ::read-base-data-fn :key (::event/key event))
+  (if (base-files-to-load (::event/key event))
+    (assoc event ::model (rdf/as-model (::event/data event)))
+    event))
 
 (def read-base-data
   (interceptor/interceptor
@@ -84,10 +108,14 @@
     :enter (fn [e] (read-base-data-fn e))}))
 
 (defn store-model-fn [event]
-  (event/store event
-               :gv-tdb
-               (get-in event [::event/data :name])
-               (::model event)))
+  (if (::model event)
+    (do
+      (log/info :fn ::store-model-fn :key (::event/key event))
+      (event/store event
+                   :gv-tdb
+                   (get-in event [::event/data :name])
+                   (::model event)))
+    event))
 
 (def store-model
   (interceptor/interceptor

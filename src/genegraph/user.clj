@@ -2082,3 +2082,62 @@ select ?sop where {
         last
         tap>))
   )
+
+
+
+;; Testing base data reconfiguration
+(comment
+  (time (get-events-from-topic gv/base-data-topic))
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-base-2025-10-03.edn.gz"]
+    (->> (event-store/event-seq r)
+         (filter #(= #_"http://dataexchange.clinicalgenome.org/gci-express"
+                     "https://thegencc.org/" (::event/key %)))
+         (take 1)
+         (run! #(p/publish (get-in gv-test-app [:topics :base-data]) %))
+         #_(mapv ::event/key)
+         #_first
+         #_frequencies
+         #_(filter #(re-find fat4uuid (::event/value %)))
+         #_(mapv event/deserialize)
+         #_tap>
+         #_last))
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-base-2025-10-03.edn.gz"]
+    (->> (event-store/event-seq r)
+         #_(take 1)
+         #_(run! #(p/publish (get-in gv-test-app [:topics :base-data]) %))
+         
+         #_first
+         #_frequencies
+         #_(filter #(re-find fat4uuid (::event/value %)))
+         #_(mapv event/deserialize)
+         (mapv ::event/key)
+         tap>
+         #_last))
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-base-2025-10-03.edn.gz"]
+    (->> (event-store/event-seq r)
+         #_(take 1)
+         #_(run! #(p/publish (get-in gv-test-app [:topics :base-data]) %))
+         
+         #_first
+         #_frequencies
+         #_(filter #(re-find fat4uuid (::event/value %)))
+         (filter #(genegraph.gene-validity.base/base-files-to-load (::event/key %)))
+         (mapv #(-> %  event/deserialize ::event/data :format))
+
+         set
+         #_last))
+  
+  (with-open [r (-> "base.edn" io/resource io/reader PushbackReader.)]
+    (->> (edn/read r)
+         (filter #(= "https://www.genenames.org/"
+                     (:name %)))
+         (mapv (fn [e] {::event/data
+                        (assoc e
+                               :source
+                               {:type :gcs
+                                :bucket "genegraph-base"
+                                :path (:target e)})}))
+         (run! #(p/publish (get-in gv-test-app [:topics :base-data]) %))))
+  )

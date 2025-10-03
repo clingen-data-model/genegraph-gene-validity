@@ -99,7 +99,7 @@
 
 ;; Topics
 
-(def fetch-base-events-topic
+#_(def fetch-base-events-topic
   {:name :fetch-base-events
    :serialization :edn
    :kafka-cluster :data-exchange
@@ -111,8 +111,8 @@
   {:name :base-data
    :serialization :edn
    :kafka-cluster :data-exchange
-   :kafka-topic (qualified-kafka-name "gg-base")
-   :kafka-topic-config {"cleanup.policy" "compact"
+   :kafka-topic "gg-base"
+   #_#_:kafka-topic-config {"cleanup.policy" "compact"
                         "delete.retention.ms" "100"}})
 
 (def gene-validity-complete-topic
@@ -644,7 +644,7 @@
     ::http/join? false
     ::http/secure-headers nil}})
 
-(def gv-base-app-def
+#_(def gv-base-app-def
   {:type :genegraph-app
    :kafka-clusters {:data-exchange data-exchange}
    :topics {:fetch-base-events
@@ -776,7 +776,7 @@
 
 
 (def genegraph-function
-  {"fetch-base" gv-base-app-def
+  {#_#_"fetch-base" gv-base-app-def
    "transform-curations" gv-transformer-def
    "graphql-endpoint" gv-graphql-endpoint-def
    "dev-transform-curations" gv-dev-transformer-def
