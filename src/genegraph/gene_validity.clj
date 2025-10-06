@@ -99,21 +99,11 @@
 
 ;; Topics
 
-#_(def fetch-base-events-topic
-  {:name :fetch-base-events
-   :serialization :edn
-   :kafka-cluster :data-exchange
-   :kafka-topic (qualified-kafka-name "gg-fb")
-   :kafka-topic-config {"cleanup.policy" "compact"
-                        "delete.retention.ms" "100"}})
-
 (def base-data-topic
   {:name :base-data
    :serialization :edn
    :kafka-cluster :data-exchange
-   :kafka-topic "gg-base"
-   #_#_:kafka-topic-config {"cleanup.policy" "compact"
-                        "delete.retention.ms" "100"}})
+   :kafka-topic "gg-base"})
 
 (def gene-validity-complete-topic
   {:name :gene-validity-complete
@@ -121,7 +111,8 @@
    :serialization :json
    :buffer-size 5
    :kafka-topic "gene_validity_complete"
-   :kafka-topic-config {}})
+   :kafka-topic-config {}
+   :reset-opts {}})
 
 (def gene-validity-raw-dev
   {:name :gene-validity-raw-dev
@@ -136,14 +127,15 @@
    :kafka-cluster :data-exchange
    :serialization ::rdf/n-triples
    :buffer-size 5
-   :kafka-topic (qualified-kafka-name "gg-gvs-dev")
-   :kafka-topic-config {}})
+   :kafka-topic "gg-legacy-gvs-dev"
+   :kafka-topic-config {}
+   :reset-opts {:reset-opts {:clear-topic true}}})
 
 (def gene-validity-sepio-topic 
   {:name :gene-validity-sepio
    :kafka-cluster :data-exchange
    :serialization ::rdf/n-triples
-   :kafka-topic (qualified-kafka-name "gg-gvs")
+   :kafka-topic "gg-legacy-gvs"
    :kafka-topic-config {}})
 
 (def api-log-topic
@@ -682,7 +674,7 @@
   {:type :genegraph-app
    :kafka-clusters {:data-exchange data-exchange}
    :topics {:gene-validity-complete
-            (assoc gene-validity-raw-dev
+            (assoc gene-validity-complete-topic
                    :type :kafka-consumer-group-topic
                    :kafka-consumer-group consumer-group
                    :buffer-size 5)

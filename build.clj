@@ -39,6 +39,39 @@
    ":v"
    (b/git-count-revs {})))
 
+(def transformer-app-name)
+
+(defn transformer-kubernetes-deployment []
+  {:apiVersion "apps/v1"
+   :kind "Deployment"
+   :metadata {:name transformer-app-name}
+   :spec
+   {:selector {:matchLabels {:app transformer-app-name}}
+    :template
+    {:metadata {:labels {:app transformer-app-name}}
+     :spec
+     {:containers
+      [{:name transformer-app-name
+        :image (image-tag)
+        :env [{:name "GENEGRAPH_PLATFORM" :value "prod"}
+              {:name "GENEGRAPH_FUNCTION" :value "dev-transform-curations"}]
+        :ports [{:name "genegraph-port" :containerPort 8888}]
+        :readinessProbe {:httpGet {:path "/ready" :port "genegraph-port"}}
+        :volumeMounts [{:mountPath "/data" :name "local-volume"}]
+        :resources {:requests {:memory "2Gi" :cpu "500m"}
+                    :limits {:memory "2Gi"}}}]
+      :tolerations [{:key "kubernetes.io/arch"
+                     :operator "Equal"
+                     :value "arm64"
+                     :effect "NoSchedule"}]
+      :volumes [{:name "local-volume" :emptyDir {:sizeLimit "50Gi"}}]
+      :affinity {:nodeAffinity {:requiredDuringSchedulingIgnoredDuringExecution
+                                {:nodeSelectorTerms
+                                 [{:matchExpressions
+                                   [{:key "kubernetes.io/arch"
+                                     :operator "In"
+                                     :values ["arm64"]}]}]}}}}}}})
+
 (defn kubernetes-deployment []
   {:apiVersion "apps/v1"
    :kind "Deployment"
@@ -136,10 +169,11 @@
         exit (process/exit-ref p)]
     (with-open [w (io/writer (process/stdin p))]
       (run! #(json/write (%) w)
-            [kubernetes-deployment
-             kubernetes-service
-             cert
-             ingress]))
+            [transformer-kubernetes-deployment
+             #_kubernetes-deployment
+             #_kubernetes-service
+             #_cert
+             #_ingress]))
     (if (zero? @(process/exit-ref p))
       (println @captured)
       (println "non-zero exit code"))))

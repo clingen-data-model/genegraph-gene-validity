@@ -75,7 +75,7 @@
 ;; The data needed to seed this topic is stored in version control with
 ;;    genegraph-gene-validity in resources/base.edn
 
-(def gv-seed-base-event-def
+#_(def gv-seed-base-event-def
   {:type :genegraph-app
    :kafka-clusters {:data-exchange gv/data-exchange}
    :topics {:fetch-base-events
