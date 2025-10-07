@@ -39,9 +39,9 @@
    ":v"
    (b/git-count-revs {})))
 
-(def transformer-app-name)
+(def transformer-app-name (str app-name "-transformer"))
 
-(defn transformer-kubernetes-deployment []
+(defn dev-transformer-kubernetes-deployment []
   {:apiVersion "apps/v1"
    :kind "Deployment"
    :metadata {:name transformer-app-name}
@@ -53,7 +53,7 @@
      {:containers
       [{:name transformer-app-name
         :image (image-tag)
-        :env [{:name "GENEGRAPH_PLATFORM" :value "prod"}
+        :env [{:name "GENEGRAPH_PLATFORM" :value "dev"}
               {:name "GENEGRAPH_FUNCTION" :value "dev-transform-curations"}]
         :ports [{:name "genegraph-port" :containerPort 8888}]
         :readinessProbe {:httpGet {:path "/ready" :port "genegraph-port"}}
@@ -169,7 +169,7 @@
         exit (process/exit-ref p)]
     (with-open [w (io/writer (process/stdin p))]
       (run! #(json/write (%) w)
-            [transformer-kubernetes-deployment
+            [dev-transformer-kubernetes-deployment
              #_kubernetes-deployment
              #_kubernetes-service
              #_cert
