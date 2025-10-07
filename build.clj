@@ -53,7 +53,7 @@
      {:containers
       [{:name transformer-app-name
         :image (image-tag)
-        :env [{:name "GENEGRAPH_PLATFORM" :value "dev"}
+        :env [{:name "GENEGRAPH_PLATFORM" :value "stage"}
               {:name "GENEGRAPH_FUNCTION" :value "dev-transform-curations"}]
         :ports [{:name "genegraph-port" :containerPort 8888}]
         :readinessProbe {:httpGet {:path "/ready" :port "genegraph-port"}}
