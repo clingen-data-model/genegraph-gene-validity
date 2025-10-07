@@ -63,13 +63,13 @@
                  :local-data-path "/data"
                  :graphql-schema (gql-schema/merged-schema
                                   {:executor direct-executor}))
-    "stage" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph"])
+    "stage" (assoc (env/build-environment "974091131481" ["dataexchange-genegraph"])
                    :version 10
                    :name "stage"
                    :function (System/getenv "GENEGRAPH_FUNCTION")
                    :kafka-user "User:2592237"
                    :fs-handle {:type :gcs
-                               :bucket "genegraph-gene-validity-stage-1"}
+                               :bucket "genegraph-legacy-test"}
                    :local-data-path "/data"
                    :graphql-schema (gql-schema/merged-schema
                                     {:executor direct-executor}))
