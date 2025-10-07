@@ -53,7 +53,7 @@
              :graphql-schema (fn []
                                (gql-schema/merged-schema
                                 {:executor direct-executor}))}
-    "dev" (assoc (env/build-environment "583560269534" ["dataexchange-genegraph-dev"])
+    "dev" (assoc (env/build-environment "974091131481" ["dataexchange-genegraph"])
                  :version 9
                  :name "dev"
                  :function (System/getenv "GENEGRAPH_FUNCTION")
