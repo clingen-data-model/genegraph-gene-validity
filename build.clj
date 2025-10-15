@@ -150,6 +150,22 @@
                    :port 80
                    :targetPort 8888}]}})
 
+(def service-name
+  (str app-name "-service"))
+
+(def dev-service-name
+  (str service-name "-dev"))
+
+(defn dev-kubernetes-service []
+  {:apiVersion "v1"
+   :kind "Service"
+   :metadata {:name dev-service-name}
+   :spec {:selector {:app dev-endpoint-app-name}
+          :type "NodePort"
+          :ports [{:protocol "TCP"
+                   :port 80
+                   :targetPort 8888}]}})
+
 (def cert-name
   (str app-name "-cert"))
 
@@ -165,11 +181,11 @@
 ;;    :metadata {:name cert-name}
 ;;    :spec {:domains [domain-name]}})
 
-;; (defn dev-cert []
-;;   {:apiVersion "networking.gke.io/v1"
-;;    :kind "ManagedCertificate"
-;;    :metadata {:name cert-name}
-;;    :spec {:domains [domain-name]}})
+(defn dev-cert []
+  {:apiVersion "networking.gke.io/v1"
+   :kind "ManagedCertificate"
+   :metadata {:name dev-cert-name}
+   :spec {:domains [dev-domain-name]}})
 
 ;; (defn ingress []
 ;;   {:apiVersion "networking.k8s.io/v1"
@@ -193,27 +209,27 @@
 ;;                                    :backend {:service {:name "genegraph-frontend"
 ;;                                                        :port {:number 80}}}}]}}]}})
 
-;; (defn dev-ingress []
-;;   {:apiVersion "networking.k8s.io/v1"
-;;    :kind "Ingress"
-;;    :metadata {:name (str app-name "-ingress-dev")
-;;               :annotations
-;;               {"kubernetes.io/ingress.global-static-ip-name" "global-genegraph-legacy-test-ip"
-;;                "networking.gke.io/managed-certificates" cert-name
-;;                "kubernetes.io/ingress.class" "gce"}}
-;;    :spec {:rules [{:host dev-domain-name
-;;                    :http {:paths [{:path "/api"
-;;                                    :pathType "ImplementationSpecific"
-;;                                    :backend {:service {:name app-name
-;;                                                        :port {:number 80}}}}
-;;                                   {:path "/ws"
-;;                                    :pathType "ImplementationSpecific"
-;;                                    :backend {:service {:name app-name
-;;                                                        :port {:number 80}}}}
-;;                                   #_{:path "/*"
-;;                                    :pathType "ImplementationSpecific"
-;;                                    :backend {:service {:name "genegraph-frontend"
-;;                                                        :port {:number 80}}}}]}}]}})
+(defn dev-ingress []
+  {:apiVersion "networking.k8s.io/v1"
+   :kind "Ingress"
+   :metadata {:name (str app-name "-ingress-dev")
+              :annotations
+              {"kubernetes.io/ingress.global-static-ip-name" "global-genegraph-legacy-test-ip"
+               "networking.gke.io/managed-certificates" dev-cert-name
+               "kubernetes.io/ingress.class" "gce"}}
+   :spec {:rules [{:host dev-domain-name
+                   :http {:paths [{:path "/api"
+                                   :pathType "ImplementationSpecific"
+                                   :backend {:service {:name dev-service-name
+                                                       :port {:number 80}}}}
+                                  {:path "/ws"
+                                   :pathType "ImplementationSpecific"
+                                   :backend {:service {:name dev-service-name
+                                                       :port {:number 80}}}}
+                                  #_{:path "/*"
+                                   :pathType "ImplementationSpecific"
+                                   :backend {:service {:name "genegraph-frontend"
+                                                       :port {:number 80}}}}]}}]}})
 
 
 (defn docker-push
@@ -239,6 +255,9 @@
       (run! #(json/write (%) w)
             [dev-transformer-kubernetes-deployment
              dev-graphql-kubernetes-deployment
+             dev-kubernetes-service
+             dev-cert
+             dev-ingress
              #_kubernetes-deployment
              #_kubernetes-service
              #_cert
@@ -249,6 +268,6 @@
 
 (defn deploy
   [_]
-  (uber nil)
-  (docker-push nil)
+  #_(uber nil)
+  #_(docker-push nil)
   (kubernetes-apply nil))

@@ -50,7 +50,20 @@
     "http://purl.obolibrary.org/obo/hp.owl"
     "https://www.w3.org/2002/07/owl"
     "http://purl.obolibrary.org/obo/ro.owl"
-    "http://www.w3.org/2000/01/rdf-schema#"})
+    "http://www.w3.org/2000/01/rdf-schema#"
+    "http://purl.obolibrary.org/obo/sepio-clingen-dosage-valueset"
+    "http://purl.obolibrary.org/obo/sepio-clingen-dosage.owl"
+    "http://dataexchange.clinicalgenome.org/models/sepio-clingen-dosage-shapes.ttl"
+    "http://dataexchange.clinicalgenome.org/models/sepio-clingen-actionability-shapes.ttl"
+    "http://purl.obolibrary.org/obo/sepio-clingen-actionability"
+    "http://dataexchange.clinicalgenome.org/models/sepio-clingen-actionability-valueset"
+    "http://purl.obolibrary.org/obo/sepio-valueset.owl"
+    "http://purl.obolibrary.org/obo/sepio.owl"
+    "http://purl.obolibrary.org/obo/sepio-clingen-acmg.owl"
+    "http://purl.obolibrary.org/obo/sepio-clingen-acmg-valueset.owl"
+    "http://purl.obolibrary.org/obo/sepio-clingen-gene-validity"
+    "http://purl.obolibrary.org/obo/sepio-clingen-gene-validity-valueset"
+    "http://purl.obolibrary.org/obo/sepio-clingen-gene-validity-shapes"})
 
 (defn output-handle [event]
   (-> event
