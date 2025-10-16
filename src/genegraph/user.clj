@@ -24,7 +24,8 @@
             [clojure.set :as set]
             [clojure.edn :as edn]
             [clojure.walk :as walk]
-            [clojure.spec.alpha :as spec])
+            [clojure.spec.alpha :as spec]
+            [clojure.data :as data])
   (:import [java.time Instant LocalDate]
            [ch.qos.logback.classic Logger Level]
            [org.slf4j LoggerFactory]
@@ -189,6 +190,13 @@
   gv/fetch-base-events-topic
 
   (time (get-events-from-topic gv/gene-validity-sepio-topic))
+
+  (time (get-events-from-topic {:name :gene-validity-sepio
+                                :kafka-cluster :data-exchange
+                                :serialization ::rdf/n-triples
+                                :kafka-topic "gg-gvs-prod-9"}))
+
+  (+ 1 1)
 
   (time (get-events-from-topic gv/dosage-topic))
   (time (get-events-from-topic gv/api-log-topic))
@@ -2183,31 +2191,49 @@ select ?sop where {
        #_(-> (storage/read tdb "http://www.w3.org/2000/01/rdf-schema#")
              rdf/pp-model))))
 
-  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-legacy-gvs-dev-2025-10-14.edn.gz"]
+  (def approver-q
+    (rdf/create-query "select ?a where { ?a :bfo/realizes :sepio/ApproverRole }"))
+  (def multiple-approval-dates
+    (time
+     (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-legacy-gvs-dev-2025-10-14.edn.gz"]
+       (->> (event-store/event-seq r)
+            #_(take 1000)
+            #_count
+            (pmap (fn [x]
+                    {:k (::event/key x)
+                     :dates (some-> x
+                                    event/deserialize
+                                    ::event/data
+                                    approver-q
+                                    first
+                                    (rdf/ld-> [:sepio/activity-date]))}))
+            (filterv #(and % (< 1 (count (:dates %)))))
+            #_tap>
+            #_(mapv #(-> %  event/deserialize ::event/data :format))
+            #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %))
+            
+            #_first
+            #_frequencies
+            #_(filter #(re-find fat4uuid (::event/value %)))
+            #_(filter #(genegraph.gene-validity.base/base-files-to-load (::event/key %)))
+            #_(mapv #(-> %  event/deserialize ::event/data :format))
+
+            #_set
+            #_last))))
+  (->> multiple-approval-dates (map :k) set first)
+  "gg-gvs-prod-9-2025-10-15.edn.gz"
+(def mytl1
+  (event-store/with-event-reader [r
+
+                                  #_"/Users/tristan/data/genegraph-neo/gg-legacy-gvs-dev-2025-10-14.edn.gz"
+                                  "/Users/tristan/data/genegraph-neo/gg-gvs-prod-9-2025-10-15.edn.gz"]
     (->> (event-store/event-seq r)
-         #_(take 3)
+         (filter #(re-find #"4be69cb8-99ca-4793-9774-32e7b1d1c19c" (::event/value %)))
+         last
+         #_(nth 0)
+         event/deserialize
+         ::event/data
          #_count
-         #_(mapv event/deserialize)
-         #_tap>
-         #_(mapv #(-> %  event/deserialize ::event/data :format))
-         (run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %))
-         
-         #_first
-         #_frequencies
-         #_(filter #(re-find fat4uuid (::event/value %)))
-         #_(filter #(genegraph.gene-validity.base/base-files-to-load (::event/key %)))
-         #_(mapv #(-> %  event/deserialize ::event/data :format))
-
-         #_set
-         #_last))
-
-  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gg-legacy-gvs-dev-2025-10-14.edn.gz"]
-    (-> (event-store/event-seq r)
-        (nth 0)
-        event/deserialize
-        ::event/data
-        rdf/pp-model
-        #_count
          #_(mapv event/deserialize)
          #_tap>
          #_(mapv #(-> %  event/deserialize ::event/data :format))
@@ -2220,29 +2246,76 @@ select ?sop where {
          #_(mapv #(-> %  event/deserialize ::event/data :format))
 
          #_set
-         #_last))
+         #_last)))
+
+(def mytl1-raw
+  (event-store/with-event-reader [r
+
+                                  #_"/Users/tristan/data/genegraph-neo/gg-legacy-gvs-dev-2025-10-14.edn.gz"
+                                  #_"/Users/tristan/data/genegraph-neo/gg-gvs-prod-9-2025-10-15.edn.gz"
+                                  "/Users/tristan/data/genegraph-neo/gene_validity_complete-2025-09-11.edn.gz"]
+    (->> (event-store/event-seq r)
+         (filter #(re-find #"4be69cb8-99ca-4793-9774-32e7b1d1c19c" (::event/value %)))
+         last
+         #_(nth 0)
+         #_event/deserialize
+         #_::event/data
+         #_count
+         #_(mapv event/deserialize)
+         #_tap>
+         #_(mapv #(-> %  event/deserialize ::event/data :format))
+         #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %))
+         
+         #_first
+         #_frequencies
+         #_(filter #(re-find fat4uuid (::event/value %)))
+         #_(filter #(genegraph.gene-validity.base/base-files-to-load (::event/key %)))
+         #_(mapv #(-> %  event/deserialize ::event/data :format))
+
+         #_set
+         #_last)))
+
+(-> mytl1-raw process-gv-event :gene-validity/model rdf/pp-model)
+(-> mytl1-raw process-gv-event ::event/data tap>)
+
+(some-> (approver-q mytl1) first (rdf/ld-> [:sepio/activity-date]) count)
   
 
   )
 
+
 ;; Testing prod, test apis against each other
 (comment
-  (def c (hc/build-http-client {:connect-timeout 10000
-                                :redirect-policy :always}))
+  (do
+    (def c (hc/build-http-client {:connect-timeout 10000
+                                  :redirect-policy :always}))
 
-  (def prod-endpoint "https://genegraph-gene-validity.prod.clingen.app/api")
-  (def test-endpoint "https://genegraph-legacy-test.prod.clingen.app/api")
-  
-  (defn request-query [query endpoint]
-    (hc/post endpoint
-             {:body query
-              :content-type :json
-              :http-client c}))
-  
-  (defn identical-responses? [query]
-    (let [r1 (future (request-query query prod-endpoint))
-          r2 (future (request-query query test-endpoint))]
-      (= (:body @r1) (:body @r2))))
+    (def prod-endpoint "https://genegraph-gene-validity.prod.clingen.app/api")
+    (def test-endpoint "https://genegraph-legacy-test.prod.clingen.app/api")
+    
+    (defn request-query [query endpoint]
+      (hc/post endpoint
+               {:body query
+                :content-type :json
+                :http-client c}))
+
+    (defn normalize-response [r]
+      (walk/postwalk
+       (fn [x]
+         (if (and (vector? x) (not (map-entry? x)))
+           (set x)
+           x))
+       (json/read-str r :key-fn keyword)))
+    
+    (defn identical-responses? [query]
+      (let [r1 (future (request-query query prod-endpoint))
+            r2 (future (request-query query test-endpoint))]
+        ;; (tap> @r1)
+        ;; (tap> @r2)
+        (and (= 200 (:status @r1) (:status @r2))
+             (or (= (:body @r1) (:body @r2))
+                 (= (normalize-response (:body @r1))
+                    (normalize-response (:body @r2))))))))
 
   (identical-responses? (nth sample-queries 2))
 
@@ -2266,63 +2339,217 @@ select ?sop where {
 
   "https://genegraph-gene-validity.prod.clingen.app/api"
   "https://genegraph-legacy-test.prod.clingen.app/api"
-   (def sample-queries
-     (event-store/with-event-reader [r (str  "/Users/tristan/data/genegraph-neo/"
-                                             "gg-apilog-prod-9-2025-10-14.edn.gz")]
-       (->> (event-store/event-seq r)
-            (take 5)
-            (mapv event/deserialize)
-            (mapv #(get-in % [::event/data :query]))
+  (def sample-queries
+    (event-store/with-event-reader [r (str  "/Users/tristan/data/genegraph-neo/"
+                                            "gg-apilog-prod-9-2025-10-14.edn.gz")]
+      (->> (event-store/event-seq r)
+           (take 5)
+           (mapv event/deserialize)
+           (mapv #(get-in % [::event/data :query]))
 
-            #_count
-            #_(mapv event/deserialize)
-            #_tap>
-            #_(mapv #(-> %  event/deserialize ::event/data :format))
-            #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %))
+           #_count
+           #_(mapv event/deserialize)
+           #_tap>
+           #_(mapv #(-> %  event/deserialize ::event/data :format))
+           #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %))
             
-            #_first
-            #_frequencies
-            #_(filter #(re-find fat4uuid (::event/value %)))
-            #_(filter #(genegraph.gene-validity.base/base-files-to-load (::event/key %)))
-            #_(mapv #(-> %  event/deserialize ::event/data :format))
+           #_first
+           #_frequencies
+           #_(filter #(re-find fat4uuid (::event/value %)))
+           #_(filter #(genegraph.gene-validity.base/base-files-to-load (::event/key %)))
+           #_(mapv #(-> %  event/deserialize ::event/data :format))
 
-            #_set
-            #_last)))
+           #_set
+           #_last)))
 
-   #_(println (nth sample-queries 2))
-   "https://genegraph-legacy-test.prod.clingen.app/api"
-   (tap>
-    (hc/post "https://genegraph-gene-validity.prod.clingen.app/api"
-             {:body (nth sample-queries 2)
-              :content-type :json
-              :http-client c}))
+  
 
-   (tap>
-    (hc/post "https://genegraph-legacy-test.prod.clingen.app/api"
-             {:body (nth sample-queries 2)
-              :content-type :json
-              :http-client c}))
+  #_(println (nth sample-queries 2))
+  "https://genegraph-legacy-test.prod.clingen.app/api"
+  (tap>
+   (hc/post "https://genegraph-gene-validity.prod.clingen.app/api"
+            {:body (nth sample-queries 2)
+             :content-type :json
+             :http-client c}))
 
-   (event-store/with-event-reader [r (str  "/Users/tristan/data/genegraph-neo/"
-                                           "gg-apilog-prod-9-2025-10-14.edn.gz")]
-     (->> (event-store/event-seq r)
-          (take 5)
-          (mapv event/deserialize)
-          (mapv #(get-in % [::event/data :query]))
+  (tap>
+   (hc/post "https://genegraph-legacy-test.prod.clingen.app/api"
+            {:body (nth sample-queries 2)
+             :content-type :json
+             :http-client c}))
 
-          #_count
-          #_(mapv event/deserialize)
-          #_tap>
-          #_(mapv #(-> %  event/deserialize ::event/data :format))
-          #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %))
-          
-          #_first
-          #_frequencies
-          #_(filter #(re-find fat4uuid (::event/value %)))
-          #_(filter #(genegraph.gene-validity.base/base-files-to-load (::event/key %)))
-          #_(mapv #(-> %  event/deserialize ::event/data :format))
+  (def inconsistent-queries
+    (event-store/with-event-reader [r (str  "/Users/tristan/data/genegraph-neo/"
+                                            "gg-apilog-prod-9-2025-10-14.edn.gz")]
+      (->> (event-store/event-seq r)
+           (remove #(re-find #"null" (::event/value %)))
+           (take 50)
+           (map event/deserialize)
+           (map #(get-in % [::event/data :query]))
+           (remove identical-responses?)
+           (into [])
+           #_frequencies
+           #_(take 5)
+           #_(mapv #(get-in % [::event/data :query]))
 
-          #_set
-          #_last))
+           #_count
+           #_(mapv event/deserialize)
+           #_tap>
+           #_(mapv #(-> %  event/deserialize ::event/data :format))
+           #_(run! #(p/publish (get-in gv-test-app [:topics :gene-validity-sepio]) %))
+            
+           #_first
+           #_frequencies
+           #_(filter #(re-find fat4uuid (::event/value %)))
+           #_(filter #(genegraph.gene-validity.base/base-files-to-load (::event/key %)))
+           #_(mapv #(-> %  event/deserialize ::event/data :format))
+
+           #_set
+           #_last)))
+
+  (count inconsistent-queries)
+
+  (->> inconsistent-queries
+       (take 1)
+       #_(mapv json/read-str)
+       (mapv #(data/diff (-> (request-query % prod-endpoint)
+                            :body
+                            normalize-response)
+                         (-> (request-query % test-endpoint)
+                             :body
+                             normalize-response)))
+       tap>
+       )
+   
+  (count inconsistent-queries)
+
+   
+
+  (+ 1 1)
    
   )
+(::event/key mytl1-raw)
+
+(do
+  (defn compare-models [m1 m2]
+    {:equal (.isIsomorphicWith m1 m2)
+     :difference [(.difference m1 m2)
+                  (.difference m2 m1)]})
+  (compare-models
+   (-> mytl1-raw
+       process-gv-event
+       :gene-validity/model)
+   base-mytl1))
+
+(comment
+  (def base-mytl1
+    (-> mytl1-raw
+        process-gv-event
+        :gene-validity/model)
+    
+    ))
+(compare-models
+ (-> mytl1-raw
+     process-gv-event
+     :gene-validity/model)
+ base-mytl1)
+
+
+
+(comment
+  (def thing {:page/tags [{:tag/category "lslsls"}]})
+  (walk/postwalk #(if (keyword? %) (keyword (name %)) %) thing)
+
+  (walk/postwalk
+   (fn [x]
+     (if (vector? x)
+       (do
+         (tap> x)
+         (set x))
+       x))
+   thing)
+
+  (vector? (first {:a 1}))
+  )
+
+
+;; Construct test set
+;; Should include ZEB2, ABCD1, Phil's gene?
+;; MYT1L for republishing
+;; One representative from every set and every MOI
+;; Republished
+;; definitive
+;; case-control
+;; can build over time
+;; Should serve as automated test case for transformation
+(def test-case-definitions
+  [{:gene "FANCC"
+    :snapshot "cf4881c3-15b3-4e10-bd24-2da80433863b"
+    :website-url "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_cf4881c3-15b3-4e10-bd24-2da80433863b-2019-04-19T160000.000Z?page=1&size=25&search="
+    :notes "AR SOP6"}
+   {:gene "ZEB2"
+    :snapshot "cb06ff0d-1cc6-494c-9ce5-f7cb26f34620" 
+    :website-url   "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_cb06ff0d-1cc6-494c-9ce5-f7cb26f34620-2018-05-24T160000.000Z?page=1&size=25&search="
+    :notes "AD SOP5 Erin's gene"}
+   {:gene "MYT1L"
+    :snapshot "32897f25-e36a-4ec8-9401-0374a95e06a5"
+    :website-url "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_32897f25-e36a-4ec8-9401-0374a95e06a5-2020-08-17T220000.000Z?page=1&size=25&search="
+    :notes "SOP7 Updated summary AD"}
+   {:gene "ABCD1"
+    :snapshot "815e0f84-b530-4fd2-81a9-02e02bf352ee"
+    :website-url "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_815e0f84-b530-4fd2-81a9-02e02bf352ee-2020-12-18T050000.000Z?page=1&size=25&search="
+    :notes "common test gene"}
+   {:gene "PAX1"
+    :snapshot "29856f7d-7c10-48cc-a74f-b014c56c4f0c"
+    :website-url "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_29856f7d-7c10-48cc-a74f-b014c56c4f0c-2023-11-16T180000.000Z?page=1&size=25&search="
+    :notes "SOP10 AR"}
+   {:gene "SFTPC"
+    :snapshot "f1e252c5-e5d1-478a-ae5f-35ad591939e5" 
+    :website-url "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_f1e252c5-e5d1-478a-ae5f-35ad591939e5-2024-07-16T160000.000Z?page=1&size=25&search="
+    :notes "SOP10 AD"}])
+
+(defn add-most-recent-event-for-curation [events-path test-cases]
+  (event-store/with-event-reader [r events-path]
+    (reduce
+     (fn [tcs e]
+       (reduce
+        (fn [new-tcs tc]
+          (if #(re-find (re-pattern (:snapshot tc)) (::event/value e))
+            (conj new-tcs (assoc tc :event e))
+            (conj new-tcs tc)))
+        []
+        tcs))
+     test-cases
+     (event-store/event-seq r))))
+(comment
+  (def test-case-definitions-with-events
+    (add-most-recent-event-for-curation
+     "/Users/tristan/data/genegraph-neo/gene_validity_complete-2025-09-11.edn.gz"
+     test-case-definitions))
+  
+  (defn add-model-output-for-sample-curations [test-cases]
+    (mapv #(assoc %
+                  :model
+                  (:gene-validity/model (process-gv-event (:event %))))
+          test-cases))
+
+  (defn test-gv [test-cases]
+    (->> test-cases
+         (pmap #(compare-models (:model %)
+                                (-> %
+                                    :event
+                                    process-gv-event
+                                    :gene-validity/model)))))
+
+  (def test-case-base
+    (add-model-output-for-sample-curations test-case-definitions-with-events))
+
+  (tap> (test-gv test-case-base))
+
+  
+  
+  )
+
+
+
+(tap> (first test-case-base))

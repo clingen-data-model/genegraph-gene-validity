@@ -268,6 +268,6 @@
 
 (defn deploy
   [_]
-  #_(uber nil)
-  #_(docker-push nil)
+  (uber nil)
+  (docker-push nil)
   (kubernetes-apply nil))
