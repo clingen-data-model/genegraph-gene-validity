@@ -91,7 +91,7 @@
       [{:name transformer-app-name
         :image (image-tag)
         :env [{:name "GENEGRAPH_PLATFORM" :value "stage"}
-              {:name "GENEGRAPH_FUNCTION" :value "dev-transform-curations"}]
+              {:name "GENEGRAPH_FUNCTION" :value "transform-curations"}]
         :ports [{:name "genegraph-port" :containerPort 8888}]
         :readinessProbe {:httpGet {:path "/ready" :port "genegraph-port"}}
         :volumeMounts [{:mountPath "/data" :name "local-volume"}]
@@ -171,6 +171,13 @@
                                      :operator "In"
                                      :values ["arm64"]}]}]}}}}}}})
 
+
+(def service-name
+  (str app-name "-service"))
+
+(def dev-service-name
+  (str service-name "-dev"))
+
 (defn kubernetes-service []
   {:apiVersion "v1"
    :kind "Service"
@@ -180,12 +187,6 @@
           :ports [{:protocol "TCP"
                    :port 80
                    :targetPort 8888}]}})
-
-(def service-name
-  (str app-name "-service"))
-
-(def dev-service-name
-  (str service-name "-dev"))
 
 (defn dev-kubernetes-service []
   {:apiVersion "v1"
@@ -303,7 +304,7 @@
   (docker-push nil)
   (kubernetes-apply-dev nil))
 
-(defn kubernetes-apply-dev
+(defn kubernetes-apply
   [_]
   (let [p (process/start {:err :inherit} "kubectl" "apply" "-f" "-")
         captured (process/io-task #(slurp (process/stdout p)))
@@ -332,5 +333,9 @@
     (kubernetes-apply nil))
 
 (defn stop-dev-transformer
-  []
+  [_]
   (process/exec {:err :stdout} "kubectl" "delete" "deployment" dev-transformer-app-name))
+
+(defn stop-transformer
+  [_]
+  (process/exec {:err :stdout} "kubectl" "delete" "deployment" transformer-app-name))

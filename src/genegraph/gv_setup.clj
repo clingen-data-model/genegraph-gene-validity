@@ -49,6 +49,8 @@
         [gv/gv-dev-transformer-def])
 
   (p/reset (p/init gv/gv-dev-transformer-def))
+
+  (p/reset (p/init gv/gv-transformer-def))
   #_(p/reset (p/init gv/gv-dev-graphql-endpoint-def))
   (+ 1 1)
 
