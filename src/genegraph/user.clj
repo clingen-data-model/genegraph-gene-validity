@@ -2220,6 +2220,7 @@ select ?sop where {
 
             #_set
             #_last))))
+  (rand-nth multiple-approval-dates)
   (->> multiple-approval-dates (map :k) set first)
   "gg-gvs-prod-9-2025-10-15.edn.gz"
 (def mytl1
@@ -2423,8 +2424,6 @@ select ?sop where {
    
   (count inconsistent-queries)
 
-   
-
   (+ 1 1)
    
   )
@@ -2492,9 +2491,10 @@ select ?sop where {
     :website-url   "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_cb06ff0d-1cc6-494c-9ce5-f7cb26f34620-2018-05-24T160000.000Z?page=1&size=25&search="
     :notes "AD SOP5 Erin's gene"}
    {:gene "MYT1L"
-    :snapshot "32897f25-e36a-4ec8-9401-0374a95e06a5"
+    :snapshot #_"32897f25-e36a-4ec8-9401-0374a95e06a5"
+    "4be69cb8-99ca-4793-9774-32e7b1d1c19c"
     :website-url "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_32897f25-e36a-4ec8-9401-0374a95e06a5-2020-08-17T220000.000Z?page=1&size=25&search="
-    :notes "SOP7 Updated summary AD"}
+    :notes "SOP7 Updated summary AD unpublished Oct 16 2025"}
    {:gene "ABCD1"
     :snapshot "815e0f84-b530-4fd2-81a9-02e02bf352ee"
     :website-url "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_815e0f84-b530-4fd2-81a9-02e02bf352ee-2020-12-18T050000.000Z?page=1&size=25&search="
@@ -2506,7 +2506,10 @@ select ?sop where {
    {:gene "SFTPC"
     :snapshot "f1e252c5-e5d1-478a-ae5f-35ad591939e5" 
     :website-url "https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_f1e252c5-e5d1-478a-ae5f-35ad591939e5-2024-07-16T160000.000Z?page=1&size=25&search="
-    :notes "SOP10 AD"}])
+    :notes "SOP10 AD"}
+   {:gene "AGTR2"
+    :snapshot "e7e649f1-6ad8-4ce0-9224-d06981a534f1"
+    :notes "Updated summary; snapshot grabs PTCHD1 Curation"}])
 
 (defn add-most-recent-event-for-curation [events-path test-cases]
   (event-store/with-event-reader [r events-path]
@@ -2514,7 +2517,7 @@ select ?sop where {
      (fn [tcs e]
        (reduce
         (fn [new-tcs tc]
-          (if #(re-find (re-pattern (:snapshot tc)) (::event/value e))
+          (if (re-find (re-pattern (:snapshot tc)) (::event/value e))
             (conj new-tcs (assoc tc :event e))
             (conj new-tcs tc)))
         []
@@ -2544,12 +2547,46 @@ select ?sop where {
   (def test-case-base
     (add-model-output-for-sample-curations test-case-definitions-with-events))
 
+  (mapv :gene test-case-base)
+
   (tap> (test-gv test-case-base))
+  (def comparison (test-gv test-case-base))
+
+  (-> comparison (nth 6) :difference (nth 1) rdf/pp-model)
+  
+  (-> test-case-base (nth 6) :event event/deserialize tap>)
 
   
+  (-> test-case-base (nth 6) :event process-gv-event :gene-validity/model  rdf/pp-model)
+
+  (def myt1l-e (-> test-case-base (nth 2) :event process-gv-event))
+  (let [q (rdf/create-query "
+prefix gci: <http://dataexchange.clinicalgenome.org/gci/>
+
+select ?x where {
+?x a gci:provisionalClassification .
+}")]
+    (-> (q (:gene-validity/gci-model myt1l-e))
+        first
+        (rdf/ld-> [:gci/approvalReviewDate])))
+
+  ;; myt1l unpublished Oct 16
+  (-> mytl1-raw event/deserialize tap>)
+
+  (rdf/pp-model (:gene-validity/gci-model myt1l-e))
+  (spit "/users/tristan/Desktop/myt1l.edn"
+        (with-out-str 
+          (-> (::event/data myt1l-e)
+              (clojure.pprint/pprint))))
+
+  (def old-class @p)
+  (def new-class @p)
   
+  (:curationReasons old-class)
+  (:curationReasons new-class)
+  (tap> (data/diff old-class new-class))
+
+
+
   )
 
-
-
-(tap> (first test-case-base))
