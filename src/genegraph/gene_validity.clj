@@ -667,7 +667,7 @@
    :processors {:gene-validity-transform
                 (assoc transform-processor
                        :kafka-cluster :data-exchange
-                       :kafka-transactional-id (qualified-kafka-name "gv-transform"))}
+                       :kafka-transactional-id (qualified-kafka-name "gv-legacy"))}
    :http-servers gv-ready-server})
 
 (def gv-dev-transformer-def
