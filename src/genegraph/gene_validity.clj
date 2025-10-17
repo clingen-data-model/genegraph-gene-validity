@@ -41,7 +41,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "prod"
+    {:platform "stage"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -129,7 +129,7 @@
    :buffer-size 5
    :kafka-topic "gg-legacy-gvs-dev"
    :kafka-topic-config {}
-   :reset-opts {:reset-opts {:clear-topic true}}})
+   :reset-opts {:clear-topic true}})
 
 (def gene-validity-sepio-topic 
   {:name :gene-validity-sepio

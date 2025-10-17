@@ -271,3 +271,7 @@
   (uber nil)
   (docker-push nil)
   (kubernetes-apply nil))
+
+(defn stop-dev-transformer
+  []
+  (process/exec {:err :stdout} "kubectl" "delete" "deployment" dev-transformer-app-name))
