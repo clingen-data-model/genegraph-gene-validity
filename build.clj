@@ -140,17 +140,17 @@
                                      :operator "In"
                                      :values ["arm64"]}]}]}}}}}}})
 
-(defn kubernetes-deployment []
+(defn graphql-kubernetes-deployment []
   {:apiVersion "apps/v1"
    :kind "Deployment"
-   :metadata {:name app-name}
+   :metadata {:name endpoint-app-name}
    :spec
-   {:selector {:matchLabels {:app app-name}}
+   {:selector {:matchLabels {:app endpoint-app-name}}
     :template
-    {:metadata {:labels {:app app-name}}
+    {:metadata {:labels {:app endpoint-app-name}}
      :spec
      {:containers
-      [{:name app-name
+      [{:name endpoint-app-name
         :image (image-tag)
         :env [{:name "GENEGRAPH_PLATFORM" :value "prod"}
               {:name "GENEGRAPH_FUNCTION" :value "graphql-endpoint"}]
@@ -174,8 +174,8 @@
 (defn kubernetes-service []
   {:apiVersion "v1"
    :kind "Service"
-   :metadata {:name app-name}
-   :spec {:selector {:app app-name}
+   :metadata {:name service-name}
+   :spec {:selector {:app service-name}
           :type "NodePort"
           :ports [{:protocol "TCP"
                    :port 80
@@ -206,11 +206,14 @@
 (def dev-domain-name
   "genegraph-legacy-test.prod.clingen.app")
 
-;; (defn cert []
-;;   {:apiVersion "networking.gke.io/v1"
-;;    :kind "ManagedCertificate"
-;;    :metadata {:name cert-name}
-;;    :spec {:domains [domain-name]}})
+(def domain-name
+  "genegraph-legacy.prod.clingen.app")
+
+(defn cert []
+  {:apiVersion "networking.gke.io/v1"
+   :kind "ManagedCertificate"
+   :metadata {:name cert-name}
+   :spec {:domains [domain-name]}})
 
 (defn dev-cert []
   {:apiVersion "networking.gke.io/v1"
@@ -218,27 +221,28 @@
    :metadata {:name dev-cert-name}
    :spec {:domains [dev-domain-name]}})
 
-;; (defn ingress []
-;;   {:apiVersion "networking.k8s.io/v1"
-;;    :kind "Ingress"
-;;    :metadata {:name (str app-name "-ingress")
-;;               :annotations
-;;               {"kubernetes.io/ingress.global-static-ip-name" "global-genegraph-legacy-test-ip"
-;;                "networking.gke.io/managed-certificates" cert-name
-;;                "kubernetes.io/ingress.class" "gce"}}
-;;    :spec {:rules [{:host domain-name
-;;                    :http {:paths [{:path "/api"
-;;                                    :pathType "ImplementationSpecific"
-;;                                    :backend {:service {:name app-name
-;;                                                        :port {:number 80}}}}
-;;                                   {:path "/ws"
-;;                                    :pathType "ImplementationSpecific"
-;;                                    :backend {:service {:name app-name
-;;                                                        :port {:number 80}}}}
-;;                                   {:path "/*"
-;;                                    :pathType "ImplementationSpecific"
-;;                                    :backend {:service {:name "genegraph-frontend"
-;;                                                        :port {:number 80}}}}]}}]}})
+(defn ingress []
+  {:apiVersion "networking.k8s.io/v1"
+   :kind "Ingress"
+   :metadata {:name (str app-name "-ingress")
+              :annotations
+              {"kubernetes.io/ingress.global-static-ip-name" "global-genegraph-legacy-ip"
+               "networking.gke.io/managed-certificates" cert-name
+               "kubernetes.io/ingress.class" "gce"}}
+   :spec {:rules [{:host domain-name
+                   :http {:paths [{:path "/api"
+                                   :pathType "ImplementationSpecific"
+                                   :backend {:service {:name app-name
+                                                       :port {:number 80}}}}
+                                  {:path "/ws"
+                                   :pathType "ImplementationSpecific"
+                                   :backend {:service {:name app-name
+                                                       :port {:number 80}}}}
+                                  ;; {:path "/*"
+                                  ;;  :pathType "ImplementationSpecific"
+                                  ;;  :backend {:service {:name "genegraph-frontend"
+                                  ;;                      :port {:number 80}}}}
+                                  ]}}]}})
 
 (defn dev-ingress []
   {:apiVersion "networking.k8s.io/v1"
@@ -288,11 +292,7 @@
              dev-graphql-kubernetes-deployment
              dev-kubernetes-service
              dev-cert
-             dev-ingress
-             #_kubernetes-deployment
-             #_kubernetes-service
-             #_cert
-             #_ingress]))
+             dev-ingress]))
     (if (zero? @(process/exit-ref p))
       (println @captured)
       (println "non-zero exit code"))))
@@ -303,11 +303,33 @@
   (docker-push nil)
   (kubernetes-apply-dev nil))
 
-#_(defn deploy-prod
+(defn kubernetes-apply-dev
+  [_]
+  (let [p (process/start {:err :inherit} "kubectl" "apply" "-f" "-")
+        captured (process/io-task #(slurp (process/stdout p)))
+        exit (process/exit-ref p)]
+    (with-open [w (io/writer (process/stdin p))]
+      (run! #(json/write (%) w)
+            [transformer-kubernetes-deployment
+             graphql-kubernetes-deployment
+             kubernetes-service
+             cert
+             ingress]))
+    (if (zero? @(process/exit-ref p))
+      (println @captured)
+      (println "non-zero exit code"))))
+
+(defn deploy-prod
   [_]
   (uber nil)
   (docker-push nil)
   (kubernetes-apply nil))
+
+#_(defn deploy-prod
+    [_]
+    (uber nil)
+    (docker-push nil)
+    (kubernetes-apply nil))
 
 (defn stop-dev-transformer
   []
