@@ -41,7 +41,7 @@
 
 (comment
   (run! #(kafka-admin/configure-kafka-for-app! (p/init %))
-        [gv/gv-base-app-def
+        [#_gv/gv-base-app-def
          gv/gv-transformer-def
          gv/gv-graphql-endpoint-def])
 

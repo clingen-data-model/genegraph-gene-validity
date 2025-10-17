@@ -41,7 +41,7 @@
 (def admin-env
   (if (or (System/getenv "DX_JAAS_CONFIG_DEV")
           (System/getenv "DX_JAAS_CONFIG")) ; prevent this in cloud deployments
-    {:platform "stage"
+    {:platform "prod"
      :dataexchange-genegraph (System/getenv "DX_JAAS_CONFIG")
      :local-data-path "data/"}
     {}))
@@ -75,11 +75,11 @@
                                     {:executor direct-executor}))
     "prod" (assoc (env/build-environment "974091131481" ["dataexchange-genegraph"])
                   :function (System/getenv "GENEGRAPH_FUNCTION")
-                  :version 9
+                  :version 10
                   :name "prod"
                   :kafka-user "User:2592237"
                   :fs-handle {:type :gcs
-                              :bucket "genegraph-gene-validity-prod-1"}
+                              :bucket "genegraph-gene-validity-legacy"}
                   :local-data-path "/data"
                   :graphql-schema (gql-schema/merged-schema
                                    {:executor direct-executor}))
@@ -143,7 +143,7 @@
    :kafka-cluster :data-exchange
    :serialization :edn
    :create-producer true
-   :kafka-topic (qualified-kafka-name "gg-apilog")
+   :kafka-topic (qualified-kafka-name "gg-legacy-apilog")
    :kafka-topic-config {"retention.ms"
                         (str (* 1000 60 60 24 14))}}) ; 2 wk retention
 

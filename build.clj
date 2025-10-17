@@ -50,6 +50,37 @@
 (defn dev-transformer-kubernetes-deployment []
   {:apiVersion "apps/v1"
    :kind "Deployment"
+   :metadata {:name dev-transformer-app-name}
+   :spec
+   {:selector {:matchLabels {:app dev-transformer-app-name}}
+    :template
+    {:metadata {:labels {:app dev-transformer-app-name}}
+     :spec
+     {:containers
+      [{:name dev-transformer-app-name
+        :image (image-tag)
+        :env [{:name "GENEGRAPH_PLATFORM" :value "stage"}
+              {:name "GENEGRAPH_FUNCTION" :value "dev-transform-curations"}]
+        :ports [{:name "genegraph-port" :containerPort 8888}]
+        :readinessProbe {:httpGet {:path "/ready" :port "genegraph-port"}}
+        :volumeMounts [{:mountPath "/data" :name "local-volume"}]
+        :resources {:requests {:memory "2Gi" :cpu "500m"}
+                    :limits {:memory "2Gi"}}}]
+      :tolerations [{:key "kubernetes.io/arch"
+                     :operator "Equal"
+                     :value "arm64"
+                     :effect "NoSchedule"}]
+      :volumes [{:name "local-volume" :emptyDir {:sizeLimit "50Gi"}}]
+      :affinity {:nodeAffinity {:requiredDuringSchedulingIgnoredDuringExecution
+                                {:nodeSelectorTerms
+                                 [{:matchExpressions
+                                   [{:key "kubernetes.io/arch"
+                                     :operator "In"
+                                     :values ["arm64"]}]}]}}}}}}})
+
+(defn transformer-kubernetes-deployment []
+  {:apiVersion "apps/v1"
+   :kind "Deployment"
    :metadata {:name transformer-app-name}
    :spec
    {:selector {:matchLabels {:app transformer-app-name}}
@@ -246,7 +277,7 @@
    (image-tag)
    "--push"))
 
-(defn kubernetes-apply
+(defn kubernetes-apply-dev
   [_]
   (let [p (process/start {:err :inherit} "kubectl" "apply" "-f" "-")
         captured (process/io-task #(slurp (process/stdout p)))
@@ -266,7 +297,13 @@
       (println @captured)
       (println "non-zero exit code"))))
 
-(defn deploy
+(defn deploy-dev
+  [_]
+  (uber nil)
+  (docker-push nil)
+  (kubernetes-apply-dev nil))
+
+#_(defn deploy-prod
   [_]
   (uber nil)
   (docker-push nil)
