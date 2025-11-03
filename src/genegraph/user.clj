@@ -2363,6 +2363,8 @@ select ?sop where {
            #_set
            #_last)))
 
+  (tap> sample-queries)
+
   
 
   #_(println (nth sample-queries 2))
@@ -2427,18 +2429,12 @@ select ?sop where {
   (+ 1 1)
    
   )
-(::event/key mytl1-raw)
+#_(::event/key mytl1-raw)
 
-(do
-  (defn compare-models [m1 m2]
-    {:equal (.isIsomorphicWith m1 m2)
-     :difference [(.difference m1 m2)
-                  (.difference m2 m1)]})
-  (compare-models
-   (-> mytl1-raw
-       process-gv-event
-       :gene-validity/model)
-   base-mytl1))
+(defn compare-models [m1 m2]
+  {:equal (.isIsomorphicWith m1 m2)
+   :difference [(.difference m1 m2)
+                (.difference m2 m1)]})
 
 (comment
   (def base-mytl1
@@ -2447,11 +2443,7 @@ select ?sop where {
         :gene-validity/model)
     
     ))
-(compare-models
- (-> mytl1-raw
-     process-gv-event
-     :gene-validity/model)
- base-mytl1)
+
 
 
 

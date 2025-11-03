@@ -90,7 +90,7 @@
      {:containers
       [{:name transformer-app-name
         :image (image-tag)
-        :env [{:name "GENEGRAPH_PLATFORM" :value "stage"}
+        :env [{:name "GENEGRAPH_PLATFORM" :value "prod"}
               {:name "GENEGRAPH_FUNCTION" :value "transform-curations"}]
         :ports [{:name "genegraph-port" :containerPort 8888}]
         :readinessProbe {:httpGet {:path "/ready" :port "genegraph-port"}}
@@ -182,7 +182,7 @@
   {:apiVersion "v1"
    :kind "Service"
    :metadata {:name service-name}
-   :spec {:selector {:app service-name}
+   :spec {:selector {:app endpoint-app-name}
           :type "NodePort"
           :ports [{:protocol "TCP"
                    :port 80
@@ -199,7 +199,7 @@
                    :targetPort 8888}]}})
 
 (def cert-name
-  (str app-name "-cert"))
+  (str app-name "-certificate"))
 
 (def dev-cert-name
   (str cert-name "-dev"))
@@ -207,8 +207,11 @@
 (def dev-domain-name
   "genegraph-legacy-test.prod.clingen.app")
 
-(def domain-name
+#_(def domain-name
   "genegraph-legacy.prod.clingen.app")
+
+(def domain-name
+  "genegraph-gene-validity.prod.clingen.app")
 
 (defn cert []
   {:apiVersion "networking.gke.io/v1"
@@ -227,17 +230,17 @@
    :kind "Ingress"
    :metadata {:name (str app-name "-ingress")
               :annotations
-              {"kubernetes.io/ingress.global-static-ip-name" "global-genegraph-legacy-ip"
+              {"kubernetes.io/ingress.global-static-ip-name" #_"global-genegraph-legacy-ip" "global-prod-genegraph-gene-validity-prod-ip"
                "networking.gke.io/managed-certificates" cert-name
                "kubernetes.io/ingress.class" "gce"}}
    :spec {:rules [{:host domain-name
                    :http {:paths [{:path "/api"
                                    :pathType "ImplementationSpecific"
-                                   :backend {:service {:name app-name
+                                   :backend {:service {:name service-name
                                                        :port {:number 80}}}}
                                   {:path "/ws"
                                    :pathType "ImplementationSpecific"
-                                   :backend {:service {:name app-name
+                                   :backend {:service {:name service-name
                                                        :port {:number 80}}}}
                                   ;; {:path "/*"
                                   ;;  :pathType "ImplementationSpecific"

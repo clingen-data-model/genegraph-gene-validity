@@ -322,14 +322,14 @@
   {:name :gene-validity-version-store
    :type :rocksdb
    :snapshot-handle (assoc (:fs-handle env)
-                           :path "genegraph-version-store-snapshot-v4.tar.lz4")
+                           :path "genegraph-legacy-version-store-snapshot.tar.lz4")
    :path (str (:local-data-path env) "version-store")})
 
 (def gene-validity-dev-version-store
   {:name :gene-validity-version-store
    :type :rocksdb
    :snapshot-handle (assoc (:fs-handle env)
-                           :path "genegraph-dev-version-store-snapshot-v4.tar.lz4")
+                           :path "genegraph-legacy-dev-version-store-snapshot.tar.lz4")
    :path (str (:local-data-path env) "version-store")})
 
 (defn report-transform-errors-fn [event]
