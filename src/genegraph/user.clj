@@ -151,6 +151,25 @@
     (gv/gv-ready-fn {::storage/storage {:gv-tdb db}}))
   )
 
+(comment
+
+  (->> "base.edn"
+       io/resource
+       slurp
+       edn/read-string
+       #_(filterv #(= #_"https://www.ncbi.nlm.nih.gov/clinvar/"
+                    #_"https://genegraph.app/resources"
+                    #_"https://thegencc.org/"
+                    #_"http://www.ebi.ac.uk/efo/efo-base.owl"
+                    "https://affils.clinicalgenome.org/"
+                    (:name %)))
+       (mapv #(assoc % :source {:type :file
+                                :base "/Users/tristan/data/genegraph-base/"
+                                :path (:target %)}))
+       (mapv (fn [x] {::event/data x}))
+       (run! #(p/publish (get-in gv-test-app [:topics :base-data]) %)))
+)
+
 ;; Downloading events
 
 (def root-data-dir "/Users/tristan/data/genegraph-neo/")
@@ -2582,3 +2601,50 @@ select ?x where {
 
   )
 
+;; SMAD4 issues per email 2025-11-04
+
+(comment
+  (with-open [r (io/reader "/Users/tristan/Desktop/genes-1762263774640.json")]
+    (-> (json/read r :key-fn keyword)
+        tap>))
+
+  (with-open [r (io/reader "/Users/tristan/Desktop/genes-1762263774640.json")]
+    (filter #(= ))
+    (-> (json/read r :key-fn keyword)
+        (get-in [:data :gene :genetic_conditions])))
+
+  (-> @p
+      (json/read-str :key-fn keyword)
+      tap>)
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_legacy_complete-2025-11-04.edn.gz"]
+    (->> (event-store/event-seq r)
+         (filter #(re-find #"a5a082cc-c214-4bfa-8cb8-caead239d129" (::event/value %)))
+         (mapv event/deserialize)
+         (take-last 1)
+         (run! #(spit "/Users/tristan/Desktop/smad4.json" (::event/value %)))
+         #_(mapv #(-> % ::event/timestamp Instant/ofEpochMilli))
+         #_tap>))
+
+  (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_legacy_complete-2025-11-04.edn.gz"]
+    (->> (event-store/event-seq r)
+         (filter #(re-find #"secondary" (::event/value %)))
+         (take-last 5)
+         (mapv event/deserialize)
+         #_(mapv #(-> % ::event/timestamp Instant/ofEpochMilli))
+         tap>))
+  "ad980194-b275-4bbb-b3df-73c1a50d3eac"
+
+(event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_legacy_complete-2025-11-04.edn.gz"]
+  (->> (event-store/event-seq r)
+       (filter #(re-find #"ad980194-b275-4bbb-b3df-73c1a50d3eac" (::event/value %)))
+       #_(take-last 5)
+       (mapv event/deserialize)
+       #_(mapv #(-> % ::event/timestamp Instant/ofEpochMilli))
+       tap>))
+(def smad4-iri @p)
+  smad4-iri
+
+  
+  
+  )

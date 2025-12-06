@@ -27,9 +27,11 @@
  
  :deps
  {ch.qos.logback/logback-classic                    {:mvn/version "1.5.0"}
-  org.clojure/clojure                               {:mvn/version "1.12.0"}
+  org.clojure/clojure                               {:mvn/version "1.12.3"}
+  cheshire/cheshire {:mvn/version "6.1.0"} ;; required for lacinia-pedestal
   io.github.clingen-data-model/genegraph-framework
-  {:git/sha "4c6397ef3858612f4701faea626fd2e55493f641"}
+  #_{:git/sha "4c6397ef3858612f4701faea626fd2e55493f641"}
+  {:git/sha "80f49887646a208069a624bbf9f06ea37815d8db"}
   com.walmartlabs/lacinia-pedestal                  {:mvn/version "1.3"}
   hato/hato                                         {:mvn/version "0.9.0"}
   org.clojure/data.csv                              {:mvn/version "1.0.1"}

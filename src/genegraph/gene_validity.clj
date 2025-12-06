@@ -110,7 +110,7 @@
    :kafka-cluster :data-exchange
    :serialization :json
    :buffer-size 5
-   :kafka-topic "gene_validity_complete"
+   :kafka-topic "gene_validity_all"
    :kafka-topic-config {}
    :reset-opts {}})
 
@@ -162,7 +162,7 @@
 (def gene-validity-legacy-complete-topic
   {:name :gene-validity-legacy-complete
    :serialization :json
-   :kafka-topic "gene_validity_legacy_complete"
+   :kafka-topic "gene_validity_legacy_all"
    :kafka-cluster :data-exchange
    :kafka-topic-config {}})
 
