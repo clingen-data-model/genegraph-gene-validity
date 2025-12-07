@@ -2648,3 +2648,34 @@ select ?x where {
   
   
   )
+;; Hello again,
+
+;; I followed up with Catalina about her original issue. She said for CIC, there was an error on the website similar to what I described below with NUS1, where in the experimental evidence, the reference for the 2nd entry appears as ", , PMID: 32820034" where it should say "Cao X, et al., 2021, PMID: 32820034."
+
+;; Thanks,
+;; Pinal
+
+"https://search.clinicalgenome.org/kb/gene-validity/CGGV:assertion_e50efc63-0235-4c75-a4ab-6c129485a117-2025-05-20T160000.000Z"
+
+(comment
+  "e50efc63-0235-4c75-a4ab-6c129485a117"
+  (def nus1
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_complete-2025-12-04.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filterv #(re-find #"e50efc63-0235-4c75-a4ab-6c129485a117" (::event/value %))))))
+
+  (-> nus1
+      last
+      process-gv-event
+      :gene-validity/model
+      rdf/pp-model)
+
+  (-> nus1
+      last
+      process-gv-event
+      (dissoc :gene-validity/model :gene-validity/gci-model)
+      tap>)
+
+
+  {:last_modified "2025-05-17T08:10:02.616027", :date "2022 Jun 15;12:21.", :pmid "35949226", :item_type "article", :abstract "Variants of the ", :journal "Tremor and other hyperkinetic movements (New York, N.Y.)", :is_preprint false, :date_created "2025-05-17T08:10:02.616027", :PK "35949226", :authors ["Riboldi GM" "Monfrini E" "Stahl C" "Frucht SJ"]}
+  )
