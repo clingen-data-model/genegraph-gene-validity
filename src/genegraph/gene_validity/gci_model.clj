@@ -147,7 +147,7 @@
             "9" "http://purl.obolibrary.org/obo/SEPIO_0004171"
             "10" "http://purl.obolibrary.org/obo/SEPIO_0004190"
             "11" "http://purl.obolibrary.org/obo/SEPIO_0004191"
-
+            "12" "http://purl.obolibrary.org/obo/SEPIO_0004192"
 
             ;; Sex
             "Ambiguous" "http://purl.obolibrary.org/obo/SEPIO_0004574"

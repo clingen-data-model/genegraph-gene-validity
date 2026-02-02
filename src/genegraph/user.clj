@@ -101,7 +101,7 @@
             :api-log
             {:name :api-log
              :type :simple-queue-topic}}
-   :storage {:gv-tdb gv/gv-tdb
+   :storage {:gv-tdb (assoc gv/gv-tdb :load-snapshot false)
              :gene-validity-version-store gv/gene-validity-version-store
              :response-cache-db gv/response-cache-db}
    :processors {:gene-validity-transform gv/transform-processor
@@ -2678,4 +2678,41 @@ select ?x where {
 
 
   {:last_modified "2025-05-17T08:10:02.616027", :date "2022 Jun 15;12:21.", :pmid "35949226", :item_type "article", :abstract "Variants of the ", :journal "Tremor and other hyperkinetic movements (New York, N.Y.)", :is_preprint false, :date_created "2025-05-17T08:10:02.616027", :PK "35949226", :authors ["Riboldi GM" "Monfrini E" "Stahl C" "Frucht SJ"]}
+  )
+
+;; 
+(comment
+  (def etfa
+    (event-store/with-event-reader [r "/Users/tristan/data/genegraph-neo/gene_validity_all-2026-01-07.edn.gz"]
+      (->> (event-store/event-seq r)
+           (filterv #(re-find #"3d6848e7-6e9e-4545-9f97-69480" (::event/value %))))))
+
+  (count etfa)
+
+  (-> etfa
+      last
+      process-gv-event
+      :gene-validity/model
+      rdf/pp-model)
+
+  (with-open [r (io/reader
+               "/Users/tristan/Downloads/MessageDownloadButton.DownloadMessageJSON_2026-01-08T00_12_46.573Z.json"
+                           )]
+    (-> (charred.api/read-json r :key-fn keyword)
+        tap>))
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (-> (rdf/resource "CGGV:3d6848e7-6e9e-4545-9f97-69480face058" tdb)
+          (rdf/ld1-> [:sepio/has-subject])
+          str)))
+
+  "http://dataexchange.clinicalgenome.org/gci/86eb1148-b905-474e-b30b-2aecf76e1499"
+
+  (let [tdb @(get-in gv-test-app [:storage :gv-tdb :instance])]
+    (rdf/tx tdb
+      (-> (storage/read
+           tdb
+           "http://dataexchange.clinicalgenome.org/gci/86eb1148-b905-474e-b30b-2aecf76e1499")
+          rdf/pp-model)))
   )

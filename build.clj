@@ -342,3 +342,5 @@
 (defn stop-transformer
   [_]
   (process/exec {:err :stdout} "kubectl" "delete" "deployment" transformer-app-name))
+
+

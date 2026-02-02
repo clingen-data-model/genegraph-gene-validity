@@ -136,7 +136,8 @@
    :kafka-cluster :data-exchange
    :serialization ::rdf/n-triples
    :kafka-topic "gg-legacy-gvs"
-   :kafka-topic-config {}})
+   :kafka-topic-config {}
+   :reset-opts {:clear-topic true}})
 
 (def api-log-topic
   {:name :api-log
